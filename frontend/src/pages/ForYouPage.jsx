@@ -9,6 +9,8 @@ import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Sparkles,
+  Search,
+  Trash2,
   GraduationCap,
   MapPin,
   FileText,
@@ -29,6 +31,7 @@ import {
   AlertCircle,
   Layers,
   ChevronDown,
+  Edit3,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useForYouDashboard } from "../hooks/useForYouDashboard";
@@ -38,7 +41,6 @@ import StaggeredMenu from "../components/StaggeredMenu/StaggeredMenu";
 import {
   PROGRAMS,
   allProgramDeadlines,
-  OUTCOME_STORIES,
   SAVED_SCENARIOS,
   INR_BUFFER,
 } from "../data/forYouPrograms";
@@ -86,6 +88,8 @@ export default function ForYouPage() {
     insights,
     loading: dashboardLoading,
     error: dashboardError,
+    refresh,
+    updateCompleteness,
   } = useForYouDashboard(user?.sessionId, user?.email, !!user);
 
   const [selectedId, setSelectedId] = useState(PROGRAMS[0]?.id ?? "");
@@ -111,26 +115,104 @@ export default function ForYouPage() {
   const bottomSentinelRef = useRef(null);
   const scenariosRef = useRef(null);
 
+  const displayPrograms = useMemo(() => {
+    if (!recommendations?.universities?.length) return PROGRAMS;
+
+    return recommendations.universities
+      .map((uni, idx) => {
+        // Find matching mock program for visual styling (accent, etc.)
+        const mock = PROGRAMS[idx % PROGRAMS.length];
+        const topCourse = uni.courses?.[0] || {};
+
+        return {
+          ...mock, // Inherit dummy fields
+          id: uni.id,
+          title: uni.courseTitle || topCourse.name || "Master's Programme",
+          school: uni.full_name || uni.short_name,
+          city: uni.city,
+          country: uni.country,
+          currency:
+            uni.currency ||
+            (uni.country?.toLowerCase() === "uk" ? "GBP" : "EUR"),
+          match: 100 - (uni.qs_rank_2026 / 10 || idx * 3 + 2),
+          intake: topCourse.intake || "September 2026",
+          tag: uni.subject_strengths?.[0] || "High employability",
+          tuitionYear: uni.tuitionYear || topCourse.fee_gbp || 25000,
+          livingYear: uni.livingYear || 12000,
+          otherFeesYear: uni.otherFeesYear || 1500,
+          mapLat: uni.latitude,
+          mapLng: uni.longitude,
+        };
+      })
+      .slice(0, 6);
+  }, [recommendations?.universities]);
+
   const selected = useMemo(
-    () => PROGRAMS.find((p) => p.id === selectedId) ?? PROGRAMS[0],
-    [selectedId],
+    () =>
+      displayPrograms.find((p) => p.id === selectedId) || displayPrograms[0],
+    [displayPrograms, selectedId],
   );
   const deadlines = useMemo(() => allProgramDeadlines(), []);
-  const storiesForCourse = useMemo(
-    () => OUTCOME_STORIES.filter((s) => s.courseIds.includes(selected.id)),
-    [selected.id],
-  );
 
-  const mapMarkers = useMemo(
-    () =>
-      PROGRAMS.map((p) => ({
-        lat: p.mapLat,
-        lng: p.mapLng,
-        title: p.school,
-        sub: `${p.city} · ${p.title}`,
-      })),
-    [],
-  );
+  const [activeMarkerId, setActiveMarkerId] = useState(null);
+  const classification =
+    leadProfile?.assessment_classification ||
+    leadProfile?.classification ||
+    "Tier_3";
+
+  // Map of UK/Ireland University coordinates
+  const UNIVERSITY_COORDINATES = {
+    ucl: { lat: 51.5246, lng: -0.134 },
+    university_college_london: { lat: 51.5246, lng: -0.134 },
+    imperial_college_london: { lat: 51.4988, lng: -0.1749 },
+    lse: { lat: 51.5144, lng: -0.1166 },
+    london_school_of_economics_and_political_science: {
+      lat: 51.5144,
+      lng: -0.1166,
+    },
+    kings_college_london: { lat: 51.5115, lng: -0.116 },
+    kcl: { lat: 51.5115, lng: -0.116 },
+    university_of_edinburgh: { lat: 55.9442, lng: -3.1883 },
+    university_of_manchester: { lat: 53.4668, lng: -2.2339 },
+    university_of_warwick: { lat: 52.3793, lng: -1.5615 },
+    university_of_bristol: { lat: 51.4584, lng: -2.603 },
+    university_of_birmingham: { lat: 52.4508, lng: -1.9305 },
+    university_of_glasgow: { lat: 55.8721, lng: -4.2882 },
+    university_of_southampton: { lat: 50.9346, lng: -1.396 },
+    university_of_leeds: { lat: 53.8067, lng: -1.555 },
+    university_of_sheffield: { lat: 53.3814, lng: -1.4883 },
+    university_of_nottingham: { lat: 52.9365, lng: -1.1926 },
+    trinity_college_dublin: { lat: 53.3441, lng: -6.2544 },
+    university_college_dublin: { lat: 53.3083, lng: -6.2241 },
+    university_of_galway: { lat: 53.2792, lng: -9.0601 },
+    university_college_cork: { lat: 51.8921, lng: -8.4933 },
+    university_of_limerick: { lat: 52.6739, lng: -8.5721 },
+    dublin_city_university: { lat: 53.3851, lng: -6.257 },
+  };
+
+  const mapMarkers = useMemo(() => {
+    return displayPrograms.map((prog) => {
+      const uniId =
+        prog.school?.toLowerCase().replace(/\s+/g, "_") ||
+        prog.id?.toLowerCase().replace(/\s+/g, "_") ||
+        "default";
+
+      const coords = UNIVERSITY_COORDINATES[uniId] ||
+        UNIVERSITY_COORDINATES[prog.id?.toLowerCase()] || {
+          lat: prog.mapLat || prog.latitude || 53.3498,
+          lng: prog.mapLng || prog.longitude || -6.2603,
+        };
+
+      return {
+        id: prog.id,
+        name: prog.school || prog.university,
+        lat: coords.lat,
+        lng: coords.lng,
+        title: prog.school,
+        sub: `${prog.city || prog.location} · ${prog.title}`,
+      };
+    });
+  }, [displayPrograms]);
 
   const inrPerUnit = useMemo(() => {
     if (!selected?.currency) return null;
@@ -276,8 +358,10 @@ export default function ForYouPage() {
 
   const comparePrograms = useMemo(
     () =>
-      compareIds.map((id) => PROGRAMS.find((p) => p.id === id)).filter(Boolean),
-    [compareIds],
+      compareIds
+        .map((id) => displayPrograms.find((p) => p.id === id))
+        .filter(Boolean),
+    [compareIds, displayPrograms],
   );
 
   const scrollToId = (id) => {
@@ -303,7 +387,9 @@ export default function ForYouPage() {
       <div className="relative min-h-screen overflow-x-hidden bg-fateh-paper pb-32 pt-8 flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-fateh-gold/30 border-t-fateh-gold" />
-          <p className="mt-4 text-fateh-gold">Loading your personalized dashboard...</p>
+          <p className="mt-4 text-fateh-gold">
+            Loading your personalized dashboard...
+          </p>
         </div>
       </div>
     );
@@ -314,8 +400,13 @@ export default function ForYouPage() {
     return (
       <div className="relative min-h-screen overflow-x-hidden bg-fateh-paper pb-32 pt-8 flex items-center justify-center">
         <div className="text-center max-w-md">
-          <AlertCircle className="h-12 w-12 mx-auto text-red-400 mb-4" strokeWidth={1.5} />
-          <p className="text-lg font-semibold text-white mb-2">Could not load dashboard</p>
+          <AlertCircle
+            className="h-12 w-12 mx-auto text-red-400 mb-4"
+            strokeWidth={1.5}
+          />
+          <p className="text-lg font-semibold text-white mb-2">
+            Could not load dashboard
+          </p>
           <p className="text-sm text-fateh-muted mb-6">{dashboardError}</p>
           <button
             onClick={() => window.location.reload()}
@@ -396,11 +487,19 @@ export default function ForYouPage() {
 
               <div className="mt-10 flex flex-wrap gap-3">
                 {[
-                  { k: "Matches", v: String(PROGRAMS.length) },
+                  {
+                    k: "Matches",
+                    v: String(
+                      recommendations?.universities?.length || PROGRAMS.length,
+                    ),
+                  },
                   { k: "Shortlist", v: "3" },
                   {
                     k: "Profile",
-                    v: user?.preliminaryCallDone ? "Live" : "Growing",
+                    v:
+                      leadProfile?.data_completeness > 80 ? "Complete"
+                      : leadProfile?.data_completeness > 40 ? "Building"
+                      : "Starting",
                   },
                 ].map((chip) => (
                   <div
@@ -441,9 +540,9 @@ export default function ForYouPage() {
                 <div className="h-2 overflow-hidden rounded-full bg-white/10">
                   <motion.div
                     className="h-full rounded-full bg-linear-to-r from-fateh-gold to-fateh-gold-light"
-                    initial={{ width: "38%" }}
+                    initial={{ width: "0%" }}
                     animate={{
-                      width: user?.preliminaryCallDone ? "72%" : "38%",
+                      width: `${leadProfile?.data_completeness || (user?.preliminaryCallDone ? 72 : 38)}%`,
                     }}
                     transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
                   />
@@ -492,83 +591,164 @@ export default function ForYouPage() {
                 Book counselling
                 <ChevronRight className="h-4 w-4" strokeWidth={2} />
               </Link>
-              <Link
-                to="/"
-                className="inline-flex items-center rounded-lg border border-white/25 bg-white/5 px-6 py-3 text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-white/85 transition hover:border-fateh-gold hover:text-fateh-gold"
-              >
-                Main site
-              </Link>
             </div>
           </motion.div>
         </div>
       </header>
 
-      {/* Profile Completeness Section - Backend Data */}
+      {/* Profile Completeness Section - Redesigned Curator Assessment */}
       {leadProfile && (
-        <div className="mx-auto max-w-6xl px-5 pt-8 sm:px-6 lg:pl-18 lg:pr-8">
-          <div className="rounded-lg border border-fateh-gold/20 bg-fateh-gold/5 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-fateh-gold">
-                  Profile Completeness
-                </h3>
-                <p className="mt-1 text-sm text-fateh-muted">
-                  Personalized recommendations improve as you complete more fields
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-fateh-gold">
-                  {leadProfile.data_completeness || 0}%
+        <div className="mx-auto max-w-6xl px-5 pt-12 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="relative overflow-hidden rounded-2xl bg-fateh-paper border border-fateh-border shadow-[0_32px_64px_-24px_rgba(200,164,90,0.08)] p-8 md:p-10"
+          >
+            {/* Background Texture/Accent */}
+            <div className="absolute top-0 right-0 -mr-16 -mt-16 h-64 w-64 rounded-full bg-fateh-gold/5 blur-3xl transition-all duration-1000 group-hover:bg-fateh-gold/10" />
+            <div className="relative flex flex-col gap-10">
+              {/* Top Row: Description & Progress */}
+              <div className="flex flex-col lg:flex-row gap-12 lg:gap-20">
+                {/* Left: Title & Animated Progress */}
+                <div className="flex-1">
+                  <div className="flex items-end justify-between mb-8">
+                    <div>
+                      <span className="text-[0.68rem] font-bold uppercase tracking-[0.25em] text-fateh-gold/80 block mb-3">
+                        Institutional Alignment
+                      </span>
+                      <h2 className="text-4xl md:text-5xl font-fateh-serif text-fateh-ink italic leading-[1.1]">
+                        Profile{" "}
+                        <span className="text-fateh-gold not-italic">
+                          Assessment
+                        </span>
+                        <span className="block not-italic text-[0.62rem] font-fateh-sans uppercase tracking-[0.2em] text-fateh-muted mt-3">
+                          Verified Integrity:{" "}
+                          {leadProfile.data_completeness || 0}%
+                        </span>
+                      </h2>
+                    </div>
+                    <div className="text-right hidden sm:block">
+                      <span className="text-6xl font-fateh-serif text-fateh-gold opacity-10 leading-none">
+                        #{classification[0]}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Enhanced Progress Visualization */}
+                  <div className="relative mb-10">
+                    <div className="h-1.5 w-full bg-fateh-gold/10 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        whileInView={{
+                          width: `${leadProfile.data_completeness || 0}%`,
+                        }}
+                        transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
+                        className="h-full bg-linear-to-r from-fateh-gold to-fateh-gold-light shadow-[0_0_15px_rgba(212,175,55,0.3)]"
+                      />
+                    </div>
+                    {/* Micro-markers for premium feel */}
+                    <div className="absolute top-4 left-0 flex w-full justify-between px-1">
+                      {[0, 25, 50, 75, 100].map((m) => (
+                        <div
+                          key={m}
+                          className={`h-1 w-[1px] bg-fateh-gold/30 ${m === 0 || m === 100 ? "h-2" : ""}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-fateh-muted mt-1">Complete</p>
-              </div>
-            </div>
 
-            {/* Progress bar */}
-            <div className="relative h-3 rounded-full bg-fateh-gold/10 overflow-hidden">
-              <motion.div
-                className="h-full bg-linear-to-r from-fateh-gold to-fateh-gold-light"
-                initial={{ width: 0 }}
-                animate={{ width: `${leadProfile.data_completeness || 0}%` }}
-                transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-              />
-            </div>
+                {/* Right: Curator Observation (Wider) */}
+                <div className="lg:w-[45%] flex flex-col justify-center">
+                  <div className="rounded-2xl bg-white/60 border border-fateh-border/40 p-7 backdrop-blur-md shadow-sm relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 h-full w-1.5 bg-fateh-gold" />
+                    <h4 className="flex items-center gap-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-fateh-ink mb-4">
+                      <Sparkles className="h-4 w-4 text-fateh-gold animate-pulse" />
+                      Curator's Observation
+                    </h4>
+                    <p className="text-[0.95rem] leading-relaxed text-fateh-muted italic font-light">
+                      {leadProfile.data_completeness > 80 ?
+                        "Your profile exhibits a highly sophisticated alignment with institutional criteria. We recommend initiating Tier 1 counselling immediately."
+                      : leadProfile.data_completeness > 50 ?
+                        "Substantial progress detected. Refining your 'Academic Interests' will likely trigger premium university recommendations."
+                      : "The current profile metrics indicate early-stage engagement. Completing the portfolio verification will significantly enhance recommendation accuracy."
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-            {/* Key metrics from backend */}
-            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded bg-fateh-ink/40 p-3">
-                <p className="text-xs uppercase tracking-wider text-fateh-muted">Classification</p>
-                <p className="mt-1 text-lg font-semibold text-fateh-gold">
-                  {leadProfile.classification || "Unclassified"}
-                </p>
-              </div>
-              <div className="rounded bg-fateh-ink/40 p-3">
-                <p className="text-xs uppercase tracking-wider text-fateh-muted">Lead Score</p>
-                <p className="mt-1 text-lg font-semibold text-fateh-gold">
-                  {leadProfile.lead_score || 0}/100
-                </p>
-              </div>
-              <div className="rounded bg-fateh-ink/40 p-3">
-                <p className="text-xs uppercase tracking-wider text-fateh-muted">Intent</p>
-                <p className="mt-1 text-lg font-semibold text-fateh-gold">
-                  {leadProfile.intent_score || 0}/100
-                </p>
-              </div>
-              <div className="rounded bg-fateh-ink/40 p-3">
-                <p className="text-xs uppercase tracking-wider text-fateh-muted">Timeline</p>
-                <p className="mt-1 text-lg font-semibold text-fateh-gold">
-                  {leadProfile.timeline_score || 0}/100
-                </p>
+              {/* Bottom Row: Quantitative Metrics — Full Length Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-fateh-border/60 rounded-2xl overflow-hidden border border-fateh-border/80 shadow-inner">
+                {/* Metric Block */}
+                <div className="bg-white/90 p-6 group transition-all hover:bg-fateh-gold/[0.03]">
+                  <p className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-fateh-muted/80 mb-2">
+                    Classification
+                  </p>
+                  <p
+                    className={`text-2xl font-fateh-serif tracking-tight ${
+                      leadProfile.classification === "Hot" ? "text-red-600"
+                      : leadProfile.classification === "Warm" ?
+                        "text-fateh-gold"
+                      : "text-slate-400"
+                    }`}
+                  >
+                    {leadProfile.classification || "Cold"}
+                  </p>
+                </div>
+                {/* Metric Block */}
+                <div className="bg-white/90 p-6 group transition-all hover:bg-fateh-gold/[0.03]">
+                  <p className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-fateh-muted/80 mb-2">
+                    Lead Score
+                  </p>
+                  <div className="flex items-baseline gap-1">
+                    <p className="text-2xl font-fateh-serif text-fateh-ink">
+                      {leadProfile.lead_score || 0}
+                    </p>
+                    <span className="text-[0.65rem] font-bold text-fateh-muted/40">
+                      /100
+                    </span>
+                  </div>
+                </div>
+                {/* Metric Block */}
+                <div className="bg-white/90 p-6 group transition-all hover:bg-fateh-gold/[0.03]">
+                  <p className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-fateh-muted/80 mb-2">
+                    Intent
+                  </p>
+                  <div className="flex items-baseline gap-1">
+                    <p className="text-2xl font-fateh-serif text-fateh-ink">
+                      {leadProfile.intent_score || 0}
+                    </p>
+                    <span className="text-[0.65rem] font-bold text-fateh-muted/40">
+                      /100
+                    </span>
+                  </div>
+                </div>
+                {/* Metric Block */}
+                <div className="bg-white/90 p-6 group transition-all hover:bg-fateh-gold/[0.03]">
+                  <p className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-fateh-muted/80 mb-2">
+                    Timeline
+                  </p>
+                  <div className="flex items-baseline gap-1">
+                    <p className="text-2xl font-fateh-serif text-fateh-ink">
+                      {leadProfile.timeline_score || 0}
+                    </p>
+                    <span className="text-[0.65rem] font-bold text-fateh-muted/40">
+                      /100
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
 
       {/* Quick actions */}
       <div
         id="fy-actions"
-        className="mx-auto max-w-6xl scroll-mt-28 px-5 pt-10 sm:px-6 md:scroll-mt-24 lg:max-w-6xl lg:pl-18 lg:pr-8"
+        className="mx-auto max-w-6xl scroll-mt-28 px-5 pt-10 sm:px-6 md:scroll-mt-24 lg:max-w-6xl lg:px-8"
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 lg:gap-4">
           {[
@@ -654,7 +834,7 @@ export default function ForYouPage() {
         variants={container}
         initial="hidden"
         animate="show"
-        className="mx-auto flex max-w-6xl flex-col gap-10 px-5 py-10 sm:px-6 md:gap-12 md:py-14 lg:pl-18 lg:pr-8"
+        className="mx-auto flex max-w-6xl flex-col gap-10 px-5 py-10 sm:px-6 md:gap-12 md:py-14 lg:px-8"
       >
         {/* Courses + focus */}
         <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
@@ -677,7 +857,7 @@ export default function ForYouPage() {
               </span>
             </div>
             <div className="flex gap-5 overflow-x-auto pb-3 md:grid md:grid-cols-3 md:overflow-visible md:pb-0">
-              {PROGRAMS.map((c, idx) => {
+              {displayPrograms.map((c, idx) => {
                 const inCompare = compareIds.includes(c.id);
                 const isSelected = selectedId === c.id;
                 return (
@@ -694,7 +874,10 @@ export default function ForYouPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => setSelectedId(c.id)}
+                      onClick={() => {
+                        setSelectedId(c.id);
+                        setActiveMarkerId(c.id);
+                      }}
                       className="w-full p-6 text-left"
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -844,12 +1027,45 @@ export default function ForYouPage() {
                     <th className="w-44 p-4 font-semibold text-fateh-gold-light normal-case">
                       Factor
                     </th>
-                    {comparePrograms.map((p) => (
+                    {comparePrograms.map((p, idx) => (
                       <th
                         key={p.id}
-                        className="min-w-[200px] p-4 font-fateh-serif text-base font-semibold text-white normal-case"
+                        className="min-w-[260px] p-6 text-left normal-case bg-fateh-ink/40 first:rounded-tl-2xl last:rounded-tr-2xl border-x border-white/10"
                       >
-                        {p.title}
+                        <div className="flex items-start justify-between gap-2 mb-4">
+                          <BookOpen
+                            className="h-5 w-5 text-fateh-gold"
+                            strokeWidth={1.35}
+                          />
+                          <span className="flex items-center gap-1 rounded-full bg-fateh-gold/15 px-2.5 py-1 text-[0.65rem] font-bold text-fateh-gold-light border border-fateh-gold/25">
+                            {p.match}% Match
+                          </span>
+                        </div>
+                        <div className="h-1.25 w-full overflow-hidden rounded-full bg-white/10 mb-5 text-[0]">
+                          <motion.div
+                            className="h-full rounded-full bg-linear-to-r from-fateh-gold to-fateh-gold-light"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${p.match}%` }}
+                            transition={{
+                              duration: 1,
+                              ease: [0.16, 1, 0.3, 1],
+                            }}
+                          />
+                        </div>
+                        <h3 className="font-fateh-serif text-lg font-semibold text-white leading-snug">
+                          {p.title}
+                        </h3>
+                        <p className="mt-1 text-xs text-white/45 font-medium mb-5">
+                          {p.school}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => toggleCompare(p.id)}
+                          className="w-full flex items-center justify-center gap-2 rounded-lg py-2 text-[0.65rem] font-bold uppercase tracking-widest bg-white/10 text-white/80 hover:bg-white/20 transition group"
+                        >
+                          <Trash2 className="h-3 w-3 text-white/40 group-hover:text-red-400" />
+                          Remove
+                        </button>
                       </th>
                     ))}
                   </tr>
@@ -1012,7 +1228,10 @@ export default function ForYouPage() {
                   Financial clarity
                 </p>
                 <h2 className="mt-1 font-fateh-serif text-2xl font-semibold text-fateh-ink normal-case">
-                  Year-one requirement
+                  Year-one requirement:{" "}
+                  <span className="text-fateh-gold-dark italic">
+                    {selected.school}
+                  </span>
                 </h2>
                 <p className="mt-2 text-sm text-fateh-muted normal-case">
                   Tied to the course you select below. INR uses a live ECB-based
@@ -1031,7 +1250,7 @@ export default function ForYouPage() {
                   onChange={(e) => setSelectedId(e.target.value)}
                   className="w-full appearance-none rounded-xl border border-fateh-border bg-white py-3.5 pl-4 pr-10 text-sm font-medium text-fateh-ink outline-none ring-fateh-gold/25 focus:ring-2"
                 >
-                  {PROGRAMS.map((p) => (
+                  {displayPrograms.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.title} — {p.school}
                     </option>
@@ -1349,79 +1568,6 @@ export default function ForYouPage() {
           </motion.section>
         </div>
 
-        {/* Outcome stories */}
-        <motion.section
-          id="fy-stories"
-          variants={item}
-          className="scroll-mt-28 rounded-2xl border border-fateh-border/80 bg-white/95 p-7 shadow-lg md:p-9 lg:scroll-mt-24"
-        >
-          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-fateh-gold">
-                Outcomes
-              </p>
-              <h2 className="mt-2 font-fateh-serif text-2xl font-semibold text-fateh-ink normal-case">
-                Stories near your pick
-              </h2>
-              <p className="mt-2 text-sm text-fateh-muted normal-case">
-                Filtered by the course selected for financial clarity:{" "}
-                <span className="font-medium text-fateh-ink">
-                  {selected.title}
-                </span>
-              </p>
-            </div>
-          </div>
-
-          {storiesForCourse.length > 0 ?
-            <div className="grid gap-6 md:grid-cols-3">
-              {storiesForCourse.map((s) => (
-                <article
-                  key={s.id}
-                  className="rounded-xl border border-fateh-border/80 bg-fateh-paper/90 p-6 shadow-sm transition hover:border-fateh-gold/35 hover:shadow-md"
-                >
-                  <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold">
-                    {s.year} · {s.region}
-                  </p>
-                  <h3 className="mt-3 font-fateh-serif text-lg font-semibold text-fateh-ink normal-case">
-                    {s.headline}
-                  </h3>
-                  <p className="mt-2 text-xs text-fateh-muted normal-case">
-                    {s.name}
-                  </p>
-                  <p className="mt-4 text-sm leading-relaxed text-fateh-muted normal-case">
-                    {s.blurb}
-                  </p>
-                </article>
-              ))}
-            </div>
-          : <div className="rounded-xl border border-dashed border-fateh-border bg-fateh-paper/60 px-6 py-14 text-center">
-              <Target
-                className="mx-auto h-10 w-10 text-fateh-gold/50"
-                strokeWidth={1.25}
-              />
-              <p className="mt-4 text-sm font-semibold text-fateh-ink normal-case">
-                No curated stories for this course yet
-              </p>
-              <p className="mx-auto mt-2 max-w-md text-sm text-fateh-muted leading-relaxed normal-case">
-                We tag anonymised outcomes by programme. Ask your counsellor for
-                peer examples, or select another recommended course to see
-                matching stories.
-              </p>
-            </div>
-          }
-
-          {spot.error && storiesForCourse.length > 0 ?
-            <p className="mt-6 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950 normal-case">
-              <AlertCircle
-                className="mt-0.5 h-4 w-4 shrink-0"
-                strokeWidth={1.5}
-              />
-              Live currency failed to load — financial figures may be stale;
-              outcome stories above are still valid.
-            </p>
-          : null}
-        </motion.section>
-
         {/* Map — OpenStreetMap */}
         <motion.section
           id="fy-map"
@@ -1443,21 +1589,40 @@ export default function ForYouPage() {
             </div>
           </div>
           <div className="isolate bg-[#1a2336] p-3 md:p-4">
-            <UniversityMap markers={mapMarkers} />
+            <UniversityMap
+              markers={mapMarkers}
+              activeMarkerId={activeMarkerId}
+            />
           </div>
           <div className="grid gap-px bg-white/15 sm:grid-cols-3">
-            {PROGRAMS.map((p) => (
-              <div
+            {displayPrograms.slice(0, 3).map((p) => (
+              <button
                 key={p.id}
-                className="bg-fateh-ink/95 px-5 py-5 transition hover:bg-white/4"
+                type="button"
+                onClick={() => {
+                  setActiveMarkerId(p.id);
+                  setSelectedId(p.id);
+                  scrollToId("fy-map");
+                }}
+                className="bg-fateh-ink/95 px-5 py-5 transition hover:bg-white/4 text-left group border-r border-white/5 last:border-0"
               >
-                <p className="font-fateh-serif text-lg font-semibold text-white normal-case">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-3.5 w-3.5 text-fateh-gold" />
+                    <span className="text-[0.62rem] font-bold text-fateh-gold-light uppercase tracking-wider">
+                      {p.match}% Match
+                    </span>
+                  </div>
+                  <Search className="h-3.5 w-3.5 text-white/20 group-hover:text-fateh-gold transition-colors" />
+                </div>
+                <p className="font-fateh-serif text-base font-semibold text-white normal-case group-hover:text-fateh-gold transition-colors">
                   {p.school}
                 </p>
-                <p className="mt-1 text-xs text-white/45 normal-case">
-                  {p.city}, {p.country}
+                <p className="mt-1 text-[0.65rem] text-white/40 normal-case flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  {p.location || p.city}
                 </p>
-              </div>
+              </button>
             ))}
           </div>
         </motion.section>
@@ -1646,7 +1811,7 @@ export default function ForYouPage() {
       {/* Saved scenarios — revealed only after bottom sentinel fires + user clicks */}
       <div
         ref={scenariosRef}
-        className="mx-auto max-w-6xl px-5 md:px-6 lg:pl-18 lg:pr-8"
+        className="mx-auto max-w-6xl px-5 md:px-6 lg:px-8"
       >
         {scenariosOpen ?
           <motion.div
@@ -1695,7 +1860,7 @@ export default function ForYouPage() {
       {/* Bottom sentinel + reveal control */}
       <div
         ref={bottomSentinelRef}
-        className="mx-auto h-px w-full max-w-6xl lg:pl-18"
+        className="mx-auto h-px w-full max-w-6xl lg:px-8"
         aria-hidden
       />
 

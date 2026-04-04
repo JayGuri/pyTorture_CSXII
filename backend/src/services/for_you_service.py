@@ -12,6 +12,7 @@ Database Tables Used:
 from typing import Any, Dict, List, Optional
 from src.db.supabase_client import supabase
 from src.models.lead_schema import LeadSchema
+from src.services.lead_scoring import LeadScoringService
 import json
 import logging
 
@@ -386,18 +387,106 @@ class ForYouService:
         cost_recommendations = ForYouService.get_cost_recommendations(lead_profile, cost_data)
         insights = ForYouService.get_personalized_insights(lead_profile)
 
+        # Enrich universities with financial data
+        enriched_unis = []
+        budget_range = (lead_profile.get("budget_range") or "").lower()
+        
+        # Determine preferred living cost tier
+        if "low" in budget_range or "budget" in budget_range:
+            cost_tier = "min"
+        elif "high" in budget_range or "comfort" in budget_range:
+            cost_tier = "comfortable"
+        else:
+            cost_tier = "realistic"
+
+        course_interest = (lead_profile.get("course_interest") or "").lower()
+
+        for uni in filtered_unis[:6]:
+            # Clone to avoid modifying cache
+            uni_copy = dict(uni)
+            
+            # 1. Resolve Currency
+            country = (uni.get("country") or "UK").lower()
+            currency = "GBP" if country == "uk" else ("EUR" if country == "ireland" else "USD")
+            uni_copy["currency"] = currency
+
+            # 2. Resolve Tuition (pick relevant course or first)
+            courses = uni.get("courses", [])
+            tuition = 0
+            matched_course = None
+            if courses:
+                matched_course = next((c for c in courses if course_interest in c.get("name", "").lower()), courses[0])
+                # Check for fee_gbp or fee_eur
+                tuition = matched_course.get("fee_gbp") or matched_course.get("fee_eur") or matched_course.get("fee") or 25000
+            
+            uni_copy["tuitionYear"] = tuition
+            uni_copy["courseTitle"] = matched_course.get("name") if matched_course else uni.get("notable_course")
+
+            # 3. Resolve Living Costs (from city in cost_data)
+            city = (uni.get("city") or "").lower()
+            country_costs = cost_data.get(country, {})
+            city_costs = country_costs.get(city, {})
+            
+            monthly = city_costs.get("monthly", {}).get(cost_tier, 1200)
+            uni_copy["livingYear"] = monthly * 9  # 9 months academic year
+            
+            # 4. Other Fees (Visa, insurance, etc. - simplistic estimation)
+            uni_copy["otherFeesYear"] = 1500 if country == "uk" else 1000
+            
+            enriched_unis.append(uni_copy)
+
+        # Ensure scores are present (calculate on the fly if 0 or missing)
+        completeness = lead_profile.get("data_completeness") or 0
+        if completeness == 0:
+            completeness = LeadScoringService.calculate_data_completeness(lead_profile)
+
+        lead_score = lead_profile.get("lead_score") or 0
+        if lead_score == 0:
+            lead_score = LeadScoringService.calculate_lead_score(lead_profile)
+
+        intent_score = lead_profile.get("intent_score") or 0
+        if intent_score == 0:
+            intent_score = LeadScoringService.calculate_intent_score(lead_profile)
+
+        timeline_score = lead_profile.get("timeline_score") or 0
+        if timeline_score == 0:
+            timeline_score = LeadScoringService.calculate_timeline_score(lead_profile)
+
+        financial_score = lead_profile.get("financial_score") or 0
+        if financial_score == 0:
+            financial_score = LeadScoringService.calculate_financial_score(lead_profile)
+
+        classification = lead_profile.get("classification") or "Cold"
+        if classification == "Cold":
+            if lead_score > 80:
+                classification = "Hot"
+            elif lead_score > 50:
+                classification = "Warm"
+
+        # Add calculated scores to lead_profile for frontend response
+        lead_profile["data_completeness"] = completeness
+        lead_profile["lead_score"] = lead_score
+        lead_profile["intent_score"] = intent_score
+        lead_profile["financial_score"] = financial_score
+        lead_profile["timeline_score"] = timeline_score
+        lead_profile["classification"] = classification
+
         return {
             "lead_profile": lead_profile,
             "personalization": {
                 "session_id": lead_profile.get("session_id"),
                 "name": lead_profile.get("name"),
                 "created_at": lead_profile.get("created_at"),
-                "data_completeness": lead_profile.get("data_completeness", 0),
-                "classification": lead_profile.get("classification", "Cold"),
+                "data_completeness": completeness,
+                "classification": classification,
+                "lead_score": lead_score,
+                "intent_score": intent_score,
+                "financial_score": financial_score,
+                "timeline_score": timeline_score,
             },
             "recommendations": {
-                "universities": filtered_unis[:6],  # Top 6 universities
-                "scholarships": matched_scholarships[:5],  # Top 5 scholarships
+                "universities": enriched_unis,
+                "scholarships": matched_scholarships[:5],
                 "costs": cost_recommendations,
             },
             "insights": insights,
@@ -405,7 +494,7 @@ class ForYouService:
                 {
                     "title": "Complete Your Profile",
                     "description": "Answer a few more questions to unlock personalized recommendations",
-                    "priority": "high" if lead_profile.get("data_completeness", 0) < 70 else "low",
+                    "priority": "high" if completeness < 70 else "low",
                 },
                 {
                     "title": "Prepare for Exams",
