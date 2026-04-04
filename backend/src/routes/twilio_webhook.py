@@ -1,69 +1,25 @@
 from __future__ import annotations
 
 import asyncio
-import json
-from datetime import datetime, timezone
-from time import perf_counter
-from typing import Any, Dict, cast
-from urllib.parse import urlencode
+import time
+from typing import Dict
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Query, Request, Response as FastAPIResponse
+from pymongo.errors import DuplicateKeyError
+from twilio.twiml.voice_response import Gather, VoiceResponse
 
 from src.config.env import env
+from src.db.mongo_client import get_db
 from src.middleware.auth import validate_twilio_signature
-from src.db.supabase_client import supabase
-from src.services.stt.sarvam import transcribe_audio, download_twilio_recording
-from src.services.cache.redis_client import cache_delete, cache_get, cache_set, cache_set_if_absent
-from src.services.llm.featherless import generate_simple_reply
+from src.models.caller import build_new_caller_document
+from src.models.types import ACTIVE_CALLS, Language, get_or_create_state, remove_state
+from src.services.stt.groq_whisper import download_twilio_recording, transcribe_audio
+from src.services.tts.sarvam import cache_tts_audio, synthesize_speech
 from src.services.voice_agent.orchestrator import process_turn
-from src.services.voice_agent.intent_classifier import analyze_transcript
-from src.services.transcription.live_stream import broadcast_session_end
-from src.models.types import Language
-from src.services.voice_agent.onboarding_queue import (
-    prefetch_and_seed_onboarding_questions,
-    localize_question_texts,
-)
+from src.utils.helpers import normalize_phone, utc_now_iso
 from src.utils.logger import logger
 
 router = APIRouter()
-
-TWILIO_WEBHOOK_BASE = "/webhooks/twilio"
-
-# ── BUG-3 FIX: L1 in-memory cache + Redis persistence ───
-CALL_STATE: Dict[str, Dict[str, Any]] = {}
-PROCESSING_TASKS: Dict[str, asyncio.Task[None]] = {}
-
-_STATE_TTL = 3600  # 1 hour
-
-
-def _state_redis_key(call_sid: str) -> str:
-    return f"twilio:state:{call_sid}"
-
-
-async def _state_get(call_sid: str) -> Dict[str, Any] | None:
-    """Read call state: L1 dict first, then Redis on miss."""
-    local = CALL_STATE.get(call_sid)
-    if local is not None:
-        return local
-
-    raw = await cache_get(_state_redis_key(call_sid))
-    if raw is not None and isinstance(raw, dict):
-        CALL_STATE[call_sid] = raw  # populate L1
-        return raw
-    return None
-
-
-async def _state_set(call_sid: str, state: Dict[str, Any]) -> None:
-    """Write-through: update L1 AND Redis."""
-    CALL_STATE[call_sid] = state
-    await cache_set(_state_redis_key(call_sid), state, ttl_seconds=_STATE_TTL)
-
-
-async def _state_pop(call_sid: str) -> Dict[str, Any] | None:
-    """Remove from L1 and Redis."""
-    local = CALL_STATE.pop(call_sid, None)
-    await cache_delete(_state_redis_key(call_sid))
-    return local
 
 LANGUAGE_BY_DIGIT: Dict[str, Language] = {
     "1": "en-IN",
@@ -71,533 +27,414 @@ LANGUAGE_BY_DIGIT: Dict[str, Language] = {
     "3": "mr-IN",
 }
 
-WELCOME_PROMPT = "Welcome to Fateh Education AI assistant. Press 1 for English. Press 2 for Hindi. Press 3 for Marathi."
-
-LANGUAGE_CONFIRMATION: Dict[Language, str] = {
-    "en-IN": "Hi, I am Priya, your Fateh Education counsellor. Are you thinking of studying in the UK or Ireland?",
-    "hi-IN": "Namaste, main Priya hoon, aapki Fateh Education counsellor. Kya aap pachai ke liye UK ya Ireland ka soch rahe hain?",
-    "mr-IN": "नमस्कार, मी प्रिया, तुमची फतेह एज्युकेशन कौन्सेलर. तुम्ही यूके किंवा आयर्लंडमध्ये शिकण्याचा विचार करत आहात का?",
-}
-
-NO_AUDIO: Dict[Language, str] = {
-    "en-IN": "I could not hear any audio. Please speak again after the beep.",
-    "hi-IN": "Mujhe aapki awaaz clear nahi mili. Kripya beep ke baad phir boliye.",
-    "mr-IN": "मला तुमचा आवाज स्पष्ट ऐकू आला नाही. कृपया पुन्हा बोला.",
-}
-
-CLOSE: Dict[Language, str] = {
-    "en-IN": "Thanks for calling Fateh Education. Our counsellor will connect with you soon.",
-    "hi-IN": "Fateh Education ko call karne ke liye dhanyavaad. Hamara counsellor jald aapse sampark karega.",
-    "mr-IN": "Fateh Education ला कॉल केल्याबद्दल धन्यवाद. आमचा काउन्सेलर लवकरच संपर्क करेल.",
-}
-
-FALLBACK_REPLY: Dict[Language, str] = {
-    "en-IN": "Thanks, I captured your query. A counsellor will follow up with you shortly.",
-    "hi-IN": "Dhanyavaad, maine aapka sawaal capture kar liya hai. Counsellor jald sampark karega.",
-    "mr-IN": "धन्यवाद, मी तुमचा प्रश्न नोंदवला आहे. काउन्सेलर लवकरच संपर्क करेल.",
-}
-
-PROCESSING_REPLY: Dict[Language, str] = {
-    "en-IN": "Thanks, I am checking that now. Please share your next question after the beep.",
-    "hi-IN": "Dhanyavaad, main abhi check kar rahi hoon. Beep ke baad agla sawaal batayiye.",
-    "mr-IN": "धन्यवाद, मी आत्ता तपासत आहे. बीपनंतर पुढचा प्रश्न विचारा.",
-}
-
-VOICE_BY_LANGUAGE: Dict[Language, str] = {
+VOICE_BY_LANGUAGE = {
     "en-IN": "Polly.Raveena",
     "hi-IN": "Polly.Aditi",
     "mr-IN": "Polly.Aditi",
 }
 
-VALID_LANGUAGES: tuple[Language, ...] = ("en-IN", "hi-IN", "mr-IN")
+WELCOME_PROMPT = (
+    "Welcome to Fateh Education. Press 1 for English. "
+    "Press 2 for Hindi. Press 3 for Marathi."
+)
+
+LANGUAGE_CONFIRMATION_NEW = {
+    "en-IN": "Hi, I am Priya from Fateh Education. Please tell me how I can help with your study abroad plans today.",
+    "hi-IN": "Namaste, main Priya hoon Fateh Education se. Aaj aapko study abroad planning mein kis cheez mein help chahiye?",
+    "mr-IN": "Namaskar, mi Priya aahe Fateh Education madhun. Aaj tumhala study abroad planning sathi kashi madat hava aahe?",
+}
+
+LANGUAGE_CONFIRMATION_RETURNING = {
+    "en-IN": "Welcome back to Fateh Education. I am Priya, and we can continue from where we left off. Please tell me what you want help with today.",
+    "hi-IN": "Fateh Education mein phir se swagat hai. Main Priya hoon, aur hum wahi se continue kar sakte hain. Aaj aapko kis cheez mein help chahiye?",
+    "mr-IN": "Fateh Education madhye punha swagat aahe. Mi Priya aahe, ani apan jithe thamblo tithun pudhe jau. Aaj tumhala kontya goshtit madat hava aahe?",
+}
+
+NO_AUDIO = {
+    "en-IN": "I could not hear anything clearly. Please speak again after the beep.",
+    "hi-IN": "Mujhe aapki awaaz clear nahin mili. Kripya beep ke baad phir boliye.",
+    "mr-IN": "Mala tumcha aawaz clear aikla nahi. Krupaya beep nantar punha bola.",
+}
+
+FALLBACK_REPLY = {
+    "en-IN": "Thanks, I have noted that. A counsellor from Fateh Education will help you further. What else would you like to know?",
+    "hi-IN": "Dhanyavaad, maine yeh note kar liya hai. Fateh Education ka counsellor aapko aage help karega. Aur aap kya jaana chahenge?",
+    "mr-IN": "Dhanyavaad, mi he note kele aahe. Fateh Education cha counsellor tumhala pudhe madat karel. Aajun kay mahiti hava aahe?",
+}
+
+CLOSING_MESSAGE = {
+    "en-IN": "Thank you for calling Fateh Education. Our counsellor will connect with you soon.",
+    "hi-IN": "Fateh Education ko call karne ke liye dhanyavaad. Hamara counsellor aapse jald connect karega.",
+    "mr-IN": "Fateh Education la call kelyabaddal dhanyavaad. Amcha counsellor tumchyashi lavkarach connect karel.",
+}
+
+PROCESSED_RECORDINGS: set[str] = set()
 
 
-def _pending_reply_key(call_sid: str) -> str:
-    return f"twilio:pending-reply:{call_sid}"
-
-
-def _recording_dedupe_key(recording_sid: str) -> str:
-    return f"twilio:recording:dedupe:{recording_sid}"
-
-
-async def _pop_pending_reply(call_sid: str) -> str:
-    key = _pending_reply_key(call_sid)
-    cached = await cache_get(key)
-    if cached is None:
-        return ""
-
-    queue: list[Any]
-    if isinstance(cached, list):
-        queue = list(cached)
-    else:
-        queue = [cached]
-
-    first = queue.pop(0)
-    if queue:
-        await cache_set(key, queue, ttl_seconds=env.ASYNC_REPLY_CACHE_TTL_SEC)
-    else:
-        await cache_delete(key)
-
-    if isinstance(first, dict):
-        return str(first.get("reply", "")).strip()
-    if isinstance(first, str):
-        return first.strip()
-    return ""
-
-
-async def _push_pending_reply(call_sid: str, reply: str) -> None:
-    key = _pending_reply_key(call_sid)
-    cached = await cache_get(key)
-
-    queue: list[Any] = []
-    if isinstance(cached, list):
-        queue = list(cached)
-    elif cached is not None:
-        queue = [cached]
-
-    queue.append({
-        "reply": reply,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-    })
-    await cache_set(key, queue, ttl_seconds=env.ASYNC_REPLY_CACHE_TTL_SEC)
-
-
-def _schedule_turn_processing(state: Dict[str, Any], transcript: str, language: Language) -> None:
-    call_sid = str(state.get("call_sid", ""))
-    previous_task = PROCESSING_TASKS.get(call_sid)
-
-    async def _runner() -> None:
-        if previous_task and not previous_task.done():
-            try:
-                await previous_task
-            except Exception as exc:
-                logger.warning(f"Previous processing task failed | CallSid={call_sid} err={exc}")
-
-        reply = ""
-        try:
-            if state.get("session_id"):
-                result = await process_turn(state, transcript)
-                reply = result.reply
-            else:
-                analysis_obj = analyze_transcript(transcript, language)
-                reply = await generate_simple_reply(transcript, language, analysis_obj.dict())
-        except Exception as exc:
-            logger.error(f"Background turn processing failed | CallSid={call_sid} err={exc}")
-
-        if not reply:
-            reply = FALLBACK_REPLY[language]
-
-        await _push_pending_reply(call_sid, reply)
-
-    task = asyncio.create_task(_runner())
-    PROCESSING_TASKS[call_sid] = task
-
-    def _cleanup(completed_task: asyncio.Task[None]) -> None:
-        current = PROCESSING_TASKS.get(call_sid)
-        if current is completed_task:
-            PROCESSING_TASKS.pop(call_sid, None)
-
-    task.add_done_callback(_cleanup)
-
-
-def _build_url(path: str, query: Dict[str, str] | None = None) -> str:
-    base = f"{env.normalized_public_url()}{path}"
-    if not query:
-        return base
-    return f"{base}?{urlencode(query)}"
-
-
-def _twilio_path(path: str) -> str:
-    return f"{TWILIO_WEBHOOK_BASE}{path}"
+def _build_url(path: str) -> str:
+    return f"{env.normalized_public_url()}{path}"
 
 
 def _normalize_language(value: str | None) -> Language:
-    if value in VALID_LANGUAGES:
-        return cast(Language, value)
+    if value in {"en-IN", "hi-IN", "mr-IN"}:
+        return value
     return "en-IN"
 
 
-def _escape_xml(text: str) -> str:
-    return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+def _twiml_response(response: VoiceResponse) -> FastAPIResponse:
+    return FastAPIResponse(content=str(response), media_type="text/xml")
+
+
+def _say(response: VoiceResponse, text: str, language: Language) -> None:
+    response.say(text, language=language, voice=VOICE_BY_LANGUAGE[language])
+
+
+def _append_record(response: VoiceResponse, language: Language) -> None:
+    response.record(
+        action=f"{_build_url('/webhooks/twilio/process-turn')}?lang={language}",
+        method="POST",
+        max_length=15,
+        timeout=3,
+        play_beep=True,
+        trim="trim-silence",
+        action_on_empty_result=True,
     )
 
 
-def _twiml(parts: list[str]) -> str:
-    return f'<?xml version="1.0" encoding="UTF-8"?><Response>{"".join(parts)}</Response>'
+def _remember_recording(recording_sid: str) -> bool:
+    if not recording_sid:
+        return True
+    if recording_sid in PROCESSED_RECORDINGS:
+        return False
+    PROCESSED_RECORDINGS.add(recording_sid)
+    asyncio.create_task(_expire_recording_sid(recording_sid))
+    return True
 
 
-def _say(text: str, lang: str) -> str:
-    language = _normalize_language(lang)
-    voice = VOICE_BY_LANGUAGE[language]
-    return f'<Say language="{language}" voice="{voice}">{_escape_xml(text)}</Say>'
+async def _expire_recording_sid(recording_sid: str) -> None:
+    await asyncio.sleep(env.TWILIO_RECORDING_DEDUPE_TTL_SEC)
+    PROCESSED_RECORDINGS.discard(recording_sid)
 
 
-def _record(lang: str) -> str:
-    action = _build_url(_twilio_path("/process-recording"), {"lang": lang})
-    return (
-        f'<Record action="{action}" method="POST" maxLength="15" '
-        f'timeout="3" playBeep="true" trim="trim-silence" actionOnEmptyResult="true"/>'
-    )
+async def _upsert_caller_for_inbound_call(phone: str, call_sid: str) -> tuple[dict, bool]:
+    now = utc_now_iso()
+    db = get_db()
+    call_record = {
+        "call_sid": call_sid,
+        "started_at": now,
+        "ended_at": None,
+        "duration_seconds": None,
+        "language": "en-IN",
+        "turns": 0,
+        "status": "active",
+    }
+
+    existing = await db.callers.find_one({"phone": phone})
+    if existing:
+        await db.callers.update_one(
+            {"phone": phone},
+            {
+                "$push": {"calls": call_record},
+                "$set": {
+                    "last_contact": now,
+                    "updated_at": now,
+                },
+            },
+        )
+        updated = await db.callers.find_one({"phone": phone}) or {**existing, "calls": [*existing.get("calls", []), call_record]}
+        return updated, True
+
+    document = build_new_caller_document(phone, call_sid, now)
+    try:
+        await db.callers.insert_one(document)
+        return document, False
+    except DuplicateKeyError:
+        existing = await db.callers.find_one({"phone": phone}) or document
+        await db.callers.update_one(
+            {"phone": phone},
+            {
+                "$push": {"calls": call_record},
+                "$set": {
+                    "last_contact": now,
+                    "updated_at": now,
+                },
+            },
+        )
+        updated = await db.callers.find_one({"phone": phone}) or existing
+        return updated, True
 
 
-def _gather() -> str:
-    action = _build_url(_twilio_path("/language"))
-    return (
-        f'<Gather numDigits="1" action="{action}" method="POST" timeout="6">'
-        f'{_say(WELCOME_PROMPT, "en-IN")}</Gather>'
-    )
+async def _update_call_record(phone: str, call_sid: str, updates: dict) -> None:
+    try:
+        db = get_db()
+        set_updates = {f"calls.$.{key}": value for key, value in updates.items()}
+        set_updates["updated_at"] = utc_now_iso()
+        await db.callers.update_one(
+            {"phone": phone, "calls.call_sid": call_sid},
+            {"$set": set_updates},
+        )
+    except Exception as exc:
+        logger.error(f"Failed to update call record | phone={phone} call_sid={call_sid} err={exc}")
 
 
-# ─── POST */twilio/voice — Initial inbound call ───
+async def _handle_stt_failure(call_sid: str, language: Language) -> FastAPIResponse:
+    state = ACTIVE_CALLS.get(call_sid)
+    if state is None:
+        response = VoiceResponse()
+        _say(response, NO_AUDIO[language], language)
+        _append_record(response, language)
+        return _twiml_response(response)
+
+    state.stt_failures += 1
+    if state.stt_failures >= env.STT_REPROMPT_LIMIT:
+        await _update_call_record(
+            state.phone,
+            call_sid,
+            {"status": "dropped", "turns": state.turns, "language": language},
+        )
+        remove_state(call_sid)
+        response = VoiceResponse()
+        _say(response, CLOSING_MESSAGE[language], language)
+        response.hangup()
+        return _twiml_response(response)
+
+    response = VoiceResponse()
+    _say(response, NO_AUDIO[language], language)
+    _append_record(response, language)
+    return _twiml_response(response)
+
+
+async def _reply_with_audio_or_say(call_sid: str, reply: str, language: Language, continue_call: bool) -> FastAPIResponse:
+    response = VoiceResponse()
+    try:
+        audio_bytes = await synthesize_speech(reply, language)
+        token = await cache_tts_audio(call_sid, audio_bytes)
+        response.play(_build_url(f"/tts/{token}"))
+    except Exception as exc:
+        logger.error(f"Sarvam TTS failed | call_sid={call_sid} err={exc}")
+        _say(response, reply, language)
+
+    if continue_call:
+        _append_record(response, language)
+    else:
+        _say(response, CLOSING_MESSAGE[language], language)
+        response.hangup()
+
+    return _twiml_response(response)
+
 
 @router.post("/voice")
 async def voice(request: Request):
-    await validate_twilio_signature(request)
+    try:
+        await validate_twilio_signature(request)
+        form = await request.form()
 
-    form = await request.form()
-    call_sid = str(form.get("CallSid", ""))
-    caller = str(form.get("From", ""))
-    call_status = str(form.get("CallStatus", ""))
-    logger.info(f"Inbound call | CallSid={call_sid} From={caller} Status={call_status}")
+        call_sid = str(form.get("CallSid", ""))
+        phone = normalize_phone(str(form.get("From", "")))
 
-    # Create session in Supabase
-    result = (
-        supabase.table("call_sessions")
-        .upsert(
-            {"twilio_call_sid": call_sid, "caller_phone": caller, "status": "ringing"},
-            on_conflict="twilio_call_sid",
-        )
-        .execute()
-    )
-    session_id = result.data[0]["id"] if result.data else None
-
-    # Create initial lead record with phone number (early onboarding)
-    # Classification starts as "Cold" and gets updated as call progresses
-    if session_id:
+        caller_doc = {}
+        is_returning_caller = False
         try:
-            supabase.table("leads").upsert({
-                "session_id": session_id,
-                "phone": caller,
-                "classification": "Cold",
-                "lead_score": 0,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }, on_conflict="session_id").execute()
-            logger.info(f"Lead onboarded | session_id={session_id} phone={caller}")
+            caller_doc, is_returning_caller = await _upsert_caller_for_inbound_call(phone, call_sid)
         except Exception as exc:
-            logger.warning(f"Failed to create initial lead record | session_id={session_id} err={exc}")
+            logger.error(f"Failed to upsert caller on inbound call | phone={phone} call_sid={call_sid} err={exc}")
+            caller_doc = build_new_caller_document(phone, call_sid, utc_now_iso())
 
-    # Initialize state (L1 + Redis write-through)
-    initial_state = {
-        "call_sid": call_sid,
-        "session_id": session_id,
-        "language": "en-IN",
-        "turns": 0,
-        "stt_failures": 0,
-        "conversation_history": [],
-        "extracted_data": {"phone": caller},
-    }
-    await _state_set(call_sid, initial_state)
+        state = get_or_create_state(call_sid, phone)
+        state.language = "en-IN"
+        state.turns = 0
+        state.stt_failures = 0
+        state.call_history = []
+        state.caller_doc = caller_doc
+        state.is_returning_caller = is_returning_caller
+        state.last_ai_reply = ""
 
-    prior_task = PROCESSING_TASKS.pop(call_sid, None)
-    if prior_task and not prior_task.done():
-        prior_task.cancel()
-    await cache_delete(_pending_reply_key(call_sid))
-
-    # Fire onboarding prefetch as background task (non-blocking)
-    if session_id:
-        asyncio.create_task(
-            prefetch_and_seed_onboarding_questions(
-                session_id=session_id,
-                caller_phone=caller,
-                language="en-IN",  # language not yet known; re-seed after /language
-            )
+        response = VoiceResponse()
+        gather = Gather(
+            num_digits=1,
+            action=_build_url("/webhooks/twilio/language"),
+            method="POST",
+            timeout=6,
         )
+        gather.say(WELCOME_PROMPT, language="en-IN", voice=VOICE_BY_LANGUAGE["en-IN"])
+        response.append(gather)
+        response.redirect(_build_url("/webhooks/twilio/voice"), method="POST")
+        return _twiml_response(response)
+    except Exception as exc:
+        logger.error(f"/voice webhook failed | err={exc}")
+        response = VoiceResponse()
+        _say(response, CLOSING_MESSAGE["en-IN"], "en-IN")
+        response.hangup()
+        return _twiml_response(response)
 
-    redirect_url = _build_url(_twilio_path("/voice"))
-    body = _twiml([
-        _gather(),
-        f'<Redirect method="POST">{redirect_url}</Redirect>',
-    ])
-    logger.debug(f"TwiML response for /voice | CallSid={call_sid}: {body[:500]}")
-    return Response(content=body, media_type="text/xml")
-
-
-# ─── POST */twilio/language — Language selection via DTMF ───
 
 @router.post("/language")
 async def language(request: Request):
-    await validate_twilio_signature(request)
+    try:
+        await validate_twilio_signature(request)
+        form = await request.form()
 
-    form = await request.form()
-    digits = str(form.get("Digits", "")).strip()
-    call_sid = str(form.get("CallSid", ""))
-    lang: Language = _normalize_language(LANGUAGE_BY_DIGIT.get(digits, "en-IN"))
+        call_sid = str(form.get("CallSid", ""))
+        digit = str(form.get("Digits", "")).strip()
+        selected_language = _normalize_language(LANGUAGE_BY_DIGIT.get(digit, "en-IN"))
 
-    state = await _state_get(call_sid)
-    if state:
-        state["language"] = lang
-        await _state_set(call_sid, state)
+        phone = normalize_phone(str(form.get("From", "")))
+        state = ACTIVE_CALLS.get(call_sid) or get_or_create_state(call_sid, phone)
+        state.language = selected_language
 
-    # Update session language
-    if state and state.get("session_id"):
-        supabase.table("call_sessions").update({
-            "language_detected": lang,
-            "status": "active",
-        }).eq("id", state["session_id"]).execute()
-
-    # Localize onboarding question texts after language selection
-    if state and state.get("session_id") and lang != "en-IN":
-        asyncio.create_task(localize_question_texts(state["session_id"], lang))
-
-    body = _twiml([
-        _say(LANGUAGE_CONFIRMATION[lang], lang),
-        _record(lang),
-    ])
-    return Response(content=body, media_type="text/xml")
-
-
-# ─── POST */twilio/process-recording — Process recorded audio ───
-
-@router.post("/process-recording")
-async def process_recording(request: Request, lang: str = Query(default="en-IN")):
-    await validate_twilio_signature(request)
-    started = perf_counter()
-
-    form = await request.form()
-    call_sid = str(form.get("CallSid", ""))
-    recording_url = str(form.get("RecordingUrl", ""))
-    recording_sid = str(form.get("RecordingSid", "")).strip()
-    state = await _state_get(call_sid)
-    state_language = _normalize_language(str(state.get("language", "en-IN")) if state else "en-IN")
-    language: Language = _normalize_language(lang) if lang in VALID_LANGUAGES else state_language
-
-    if lang not in VALID_LANGUAGES:
-        logger.warning(f"Invalid lang query '{lang}' for CallSid={call_sid}; using '{language}'")
-
-    if state is None:
-        state = {
-            "call_sid": call_sid,
-            "language": language,
-            "turns": 0,
-            "stt_failures": 0,
-            "conversation_history": [],
-            "extracted_data": {},
-        }
-    state["language"] = language
-    await _state_set(call_sid, state)
-
-    if recording_sid:
-        first_seen = await cache_set_if_absent(
-            _recording_dedupe_key(recording_sid),
-            {"call_sid": call_sid},
-            ttl_seconds=env.TWILIO_RECORDING_DEDUPE_TTL_SEC,
+        confirmation_map = LANGUAGE_CONFIRMATION_RETURNING if state.is_returning_caller else LANGUAGE_CONFIRMATION_NEW
+        await _update_call_record(
+            state.phone,
+            call_sid,
+            {"language": selected_language, "status": "active", "turns": state.turns},
         )
-        if not first_seen:
-            logger.warning(f"Duplicate Twilio recording callback ignored | CallSid={call_sid} RecordingSid={recording_sid}")
-            replay = await _pop_pending_reply(call_sid)
-            reply_text = replay or PROCESSING_REPLY[language]
-            body = _twiml([
-                _say(reply_text, language),
-                _record(language),
-            ])
-            return Response(content=body, media_type="text/xml")
 
-    # No recording? Ask again
-    if not recording_url:
-        replay = await _pop_pending_reply(call_sid)
-        prompt = replay or NO_AUDIO[language]
-        body = _twiml([
-            _say(prompt, language),
-            _record(language),
-        ])
-        return Response(content=body, media_type="text/xml")
+        response = VoiceResponse()
+        _say(response, confirmation_map[selected_language], selected_language)
+        _append_record(response, selected_language)
+        return _twiml_response(response)
+    except Exception as exc:
+        logger.error(f"/language webhook failed | err={exc}")
+        response = VoiceResponse()
+        _say(response, CLOSING_MESSAGE["en-IN"], "en-IN")
+        response.hangup()
+        return _twiml_response(response)
 
-    download_ms = 0
-    stt_ms = 0
-    enqueue_ms = 0
-    inline_orchestrator_ms = 0
-    reply_source = "none"
-    reply_text = ""
+
+@router.post("/process-turn")
+async def process_turn_webhook(request: Request, lang: str = Query(default="en-IN")):
+    language = _normalize_language(lang)
+    t_start = time.monotonic()
 
     try:
-        # Download recording from Twilio
-        download_started = perf_counter()
-        audio_bytes = await download_twilio_recording(
-            recording_url,
-            timeout_sec=env.WEBHOOK_RECORDING_DOWNLOAD_TIMEOUT_SEC,
-        )
-        download_ms = int((perf_counter() - download_started) * 1000)
+        await validate_twilio_signature(request)
+        form = await request.form()
 
-        # Transcribe with Sarvam AI
-        stt_started = perf_counter()
-        transcript = await transcribe_audio(
-            audio_bytes,
-            language,
-            timeout_sec=env.WEBHOOK_STT_TIMEOUT_SEC,
-            max_contracts=env.WEBHOOK_STT_MAX_CONTRACTS,
-        )
-        stt_ms = int((perf_counter() - stt_started) * 1000)
+        call_sid = str(form.get("CallSid", ""))
+        recording_url = str(form.get("RecordingUrl", ""))
+        recording_sid = str(form.get("RecordingSid", "")).strip()
+        phone = normalize_phone(str(form.get("From", "")))
 
+        state = ACTIVE_CALLS.get(call_sid) or get_or_create_state(call_sid, phone)
+        state.language = language
+
+        if recording_sid and not _remember_recording(recording_sid):
+            logger.warning(f"Duplicate Twilio recording ignored | call_sid={call_sid} recording_sid={recording_sid}")
+            repeat_reply = state.last_ai_reply or NO_AUDIO[language]
+            return await _reply_with_audio_or_say(call_sid, repeat_reply, language, continue_call=True)
+
+        if not recording_url:
+            return await _handle_stt_failure(call_sid, language)
+
+        audio_bytes = await download_twilio_recording(recording_url)
+        transcript = await transcribe_audio(audio_bytes, language)
         if not transcript:
-            state["stt_failures"] = int(state.get("stt_failures", 0)) + 1
-            await _state_set(call_sid, state)
+            return await _handle_stt_failure(call_sid, language)
 
-            if state["stt_failures"] >= env.STT_REPROMPT_LIMIT:
-                logger.error(
-                    f"STT failed repeatedly | CallSid={call_sid} failures={state['stt_failures']}"
-                )
-                if state.get("session_id"):
-                    await broadcast_session_end(state["session_id"], state.get("extracted_data", {}))
-                pending_task = PROCESSING_TASKS.pop(call_sid, None)
-                if pending_task and not pending_task.done():
-                    pending_task.cancel()
-                await cache_delete(_pending_reply_key(call_sid))
-                await _state_pop(call_sid)
+        state.stt_failures = 0
 
-                body = _twiml([
-                    _say(FALLBACK_REPLY[language], language),
-                    _say(CLOSE[language], language),
-                    "<Hangup/>",
-                ])
-                return Response(content=body, media_type="text/xml")
+        try:
+            reply, updated_caller_doc = await asyncio.wait_for(
+                process_turn(
+                    phone=state.phone,
+                    transcript=transcript,
+                    language=language,
+                    call_history=state.call_history,
+                    call_sid=call_sid,
+                    caller_doc=state.caller_doc,
+                    is_returning_caller=state.is_returning_caller,
+                ),
+                timeout=env.ORCHESTRATOR_TIMEOUT_SEC,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Orchestrator timed out | call_sid={call_sid}")
+            reply = FALLBACK_REPLY[language]
+            updated_caller_doc = state.caller_doc
+        except Exception as exc:
+            logger.error(f"Turn orchestration failed | call_sid={call_sid} err={exc}")
+            reply = FALLBACK_REPLY[language]
+            updated_caller_doc = state.caller_doc
 
-            body = _twiml([
-                _say(NO_AUDIO[language], language),
-                _record(language),
-            ])
-            return Response(content=body, media_type="text/xml")
+        state.turns += 1
+        state.last_ai_reply = reply
+        state.caller_doc = updated_caller_doc or state.caller_doc
+        state.call_history.extend(
+            [
+                {"role": "user", "content": transcript},
+                {"role": "assistant", "content": reply},
+            ]
+        )
+        if len(state.call_history) > env.MAX_CONTEXT_MESSAGES:
+            state.call_history = state.call_history[-env.MAX_CONTEXT_MESSAGES:]
 
-        state["stt_failures"] = 0
+        await _update_call_record(
+            state.phone,
+            call_sid,
+            {
+                "language": language,
+                "turns": state.turns,
+                "status": "active",
+            },
+        )
 
-        logger.info(f"Transcript received | CallSid={call_sid} lang={language} text={transcript[:100]}")
+        if state.turns >= env.MAX_TURNS_PER_CALL:
+            await _update_call_record(
+                state.phone,
+                call_sid,
+                {
+                    "language": language,
+                    "turns": state.turns,
+                    "status": "completed",
+                },
+            )
+            remove_state(call_sid)
+            return await _reply_with_audio_or_say(call_sid, reply, language, continue_call=False)
 
-        async def _generate_inline_reply() -> str:
-            if state.get("session_id"):
-                result = await process_turn(state, transcript)
-                return result.reply
-            analysis_obj = analyze_transcript(transcript, language)
-            return await generate_simple_reply(transcript, language, analysis_obj.dict())
-
-        if env.ORCHESTRATOR_INLINE_ENABLED:
-            inline_started = perf_counter()
-            try:
-                inline_reply = await asyncio.wait_for(
-                    _generate_inline_reply(),
-                    timeout=env.ORCHESTRATOR_INLINE_TIMEOUT_SEC,
-                )
-                inline_orchestrator_ms = int((perf_counter() - inline_started) * 1000)
-                reply_text = (inline_reply or "").strip() or FALLBACK_REPLY[language]
-                reply_source = "inline"
-            except asyncio.TimeoutError:
-                inline_orchestrator_ms = int((perf_counter() - inline_started) * 1000)
-                enqueue_started = perf_counter()
-                _schedule_turn_processing(state, transcript, language)
-                enqueue_ms = int((perf_counter() - enqueue_started) * 1000)
-                reply_text = PROCESSING_REPLY[language]
-                reply_source = "timeout_fallback"
-                logger.warning(
-                    "Inline orchestrator timed out; falling back to queued processing | "
-                    f"CallSid={call_sid} timeout={env.ORCHESTRATOR_INLINE_TIMEOUT_SEC}s"
-                )
-            except Exception as inline_exc:
-                inline_orchestrator_ms = int((perf_counter() - inline_started) * 1000)
-                enqueue_started = perf_counter()
-                _schedule_turn_processing(state, transcript, language)
-                enqueue_ms = int((perf_counter() - enqueue_started) * 1000)
-                reply_text = PROCESSING_REPLY[language]
-                reply_source = "inline_error_fallback"
-                logger.error(
-                    "Inline orchestrator failed; falling back to queued processing | "
-                    f"CallSid={call_sid} err={inline_exc}"
-                )
-        else:
-            enqueue_started = perf_counter()
-            _schedule_turn_processing(state, transcript, language)
-            enqueue_ms = int((perf_counter() - enqueue_started) * 1000)
-            replay = await _pop_pending_reply(call_sid)
-            if replay:
-                reply_text = replay
-                reply_source = "queue_replay"
-            else:
-                reply_text = PROCESSING_REPLY[language]
-                reply_source = "queue_processing"
+        return await _reply_with_audio_or_say(call_sid, reply, language, continue_call=True)
     except Exception as exc:
-        logger.error(f"Processing error | CallSid={call_sid}: {exc}")
-        replay = await _pop_pending_reply(call_sid)
-        reply_text = replay or FALLBACK_REPLY[language]
-        body = _twiml([
-            _say(reply_text, language),
-            _record(language),
-        ])
-        return Response(content=body, media_type="text/xml")
-
-    state["turns"] = state.get("turns", 0) + 1
-    await _state_set(call_sid, state)
-
-    total_ms = int((perf_counter() - started) * 1000)
-    logger.info(
-        f"process_recording timings | CallSid={call_sid} "
-        f"download_ms={download_ms} stt_ms={stt_ms} inline_orchestrator_ms={inline_orchestrator_ms} "
-        f"enqueue_ms={enqueue_ms} reply_source={reply_source} total_ms={total_ms}"
-    )
-
-    # Check if max turns reached
-    if state["turns"] >= env.MAX_TURNS_PER_CALL:
-        # End call
-        if state.get("session_id"):
-            await broadcast_session_end(state["session_id"], state.get("extracted_data", {}))
-        pending_task = PROCESSING_TASKS.pop(call_sid, None)
-        if pending_task and not pending_task.done():
-            pending_task.cancel()
-        await cache_delete(_pending_reply_key(call_sid))
-        await _state_pop(call_sid)
-
-        body = _twiml([
-            _say(reply_text, language),
-            _say(CLOSE[language], language),
-            "<Hangup/>",
-        ])
-        return Response(content=body, media_type="text/xml")
-    else:
-        body = _twiml([
-            _say(reply_text, language),
-            _record(language),
-        ])
-        return Response(content=body, media_type="text/xml")
+        elapsed = time.monotonic() - t_start
+        logger.error(f"/process-turn webhook failed | lang={language} elapsed={elapsed:.2f}s err={exc}")
+        response = VoiceResponse()
+        _say(response, FALLBACK_REPLY[language], language)
+        _append_record(response, language)
+        return _twiml_response(response)
 
 
-# ─── POST */twilio/status and */twilio/voice/status — Call status callbacks ───
+async def _finalize_status_callback(form) -> None:
+    call_sid = str(form.get("CallSid", ""))
+    call_status = str(form.get("CallStatus", ""))
+    duration = int(str(form.get("CallDuration", "0")) or 0)
+    phone = normalize_phone(str(form.get("From", "")))
+
+    if call_status not in {"completed", "no-answer", "busy", "failed", "canceled"}:
+        return
+
+    state = ACTIVE_CALLS.get(call_sid)
+    effective_phone = state.phone if state else phone
+    mapped_status = "completed" if call_status == "completed" else "no-answer" if call_status == "no-answer" else "dropped"
+    if effective_phone:
+        await _update_call_record(
+            effective_phone,
+            call_sid,
+            {
+                "ended_at": utc_now_iso(),
+                "duration_seconds": duration,
+                "status": mapped_status,
+                "turns": state.turns if state else 0,
+            },
+        )
+    remove_state(call_sid)
+
 
 @router.post("/status")
 @router.post("/voice/status")
 async def status(request: Request):
-    await validate_twilio_signature(request)
+    try:
+        await validate_twilio_signature(request)
+        form = await request.form()
 
-    form = await request.form()
-    call_sid = str(form.get("CallSid", ""))
-    call_status = str(form.get("CallStatus", ""))
-    call_duration = str(form.get("CallDuration", "0"))
-    logger.info(f"Call status update | CallSid={call_sid} Status={call_status}")
-
-    terminal_statuses = {"completed", "no-answer", "busy", "failed"}
-    if call_status in terminal_statuses:
-        supabase.table("call_sessions").update({
-            "status": "completed" if call_status == "completed" else "no-answer",
-            "duration_seconds": int(call_duration),
-            "ended_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("twilio_call_sid", call_sid).execute()
-
-        state = await _state_get(call_sid)
-        if state and state.get("session_id"):
-            await broadcast_session_end(state["session_id"], state.get("extracted_data", {}))
-        pending_task = PROCESSING_TASKS.pop(call_sid, None)
-        if pending_task and not pending_task.done():
-            pending_task.cancel()
-        await cache_delete(_pending_reply_key(call_sid))
-        await _state_pop(call_sid)
-
-    return Response(status_code=200)
+        await _finalize_status_callback(form)
+        return FastAPIResponse(status_code=200)
+    except Exception as exc:
+        logger.error(f"/status webhook failed | err={exc}")
+        return FastAPIResponse(status_code=200)

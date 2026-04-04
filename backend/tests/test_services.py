@@ -1,315 +1,101 @@
-"""
-Unit tests for backend services.
-
-Tests cover:
-- ForYouService filtering and matching logic
-- KBService loading and caching
-- LeadScoringService scoring calculations
-"""
-
-import pytest
-from src.services.for_you_service import ForYouService
-from src.services.kb_service import KBService
-from src.services.lead_scoring import LeadScoringService
-
-
-# ────────────────────────────────────────────────────────────────────
-# ForYouService Tests
-# ────────────────────────────────────────────────────────────────────
-
-class TestForYouServiceFiltering:
-    """Test university filtering logic."""
-
-    def test_filter_universities_by_country(self, sample_lead, sample_university):
-        """Test filtering universities by target country."""
-        universities = [sample_university]
-        filtered = ForYouService.filter_universities_by_profile(sample_lead, universities)
-
-        assert len(filtered) == 1
-        assert filtered[0]["country"].lower() in sample_lead["target_countries"]
-
-    def test_filter_universities_by_gpa(self, sample_university):
-        """Test filtering universities by GPA requirement."""
-        lead_low_gpa = {
-            "target_countries": ["uk"],
-            "gpa": 6.0,  # Very low GPA
-            "ielts_score": None,
-            "course_interest": "Computer Science",
-        }
-
-        universities = [sample_university]
-        filtered = ForYouService.filter_universities_by_profile(lead_low_gpa, universities)
-
-        # Low GPA leads should be filtered out
-        assert len(filtered) == 0
-
-    def test_filter_universities_by_ielts(self, sample_university):
-        """Test filtering universities by IELTS score."""
-        lead_low_ielts = {
-            "target_countries": ["uk"],
-            "gpa": 8.0,
-            "ielts_score": 5.5,  # Below requirement of 7.0
-            "course_interest": "Computer Science",
-        }
-
-        universities = [sample_university]
-        filtered = ForYouService.filter_universities_by_profile(lead_low_ielts, universities)
-
-        # Low IELTS leads should be filtered out
-        assert len(filtered) == 0
-
-    def test_filter_universities_target_countries_as_string(self, sample_university):
-        """Test that target_countries can be string or list."""
-        lead_string = {
-            "target_countries": "uk",  # String instead of list
-            "gpa": 8.0,
-            "ielts_score": 7.5,
-            "course_interest": "Computer Science",
-        }
-
-        universities = [sample_university]
-        filtered = ForYouService.filter_universities_by_profile(lead_string, universities)
-
-        assert len(filtered) == 1
-
-    def test_filter_universities_returns_sorted(self, sample_lead):
-        """Test that universities are returned sorted by QS rank."""
-        universities = [
-            {"qs_rank_2026": 50, "country": "uk", "subject_strengths": []},
-            {"qs_rank_2026": 2, "country": "uk", "subject_strengths": []},
-            {"qs_rank_2026": 100, "country": "uk", "subject_strengths": []},
-        ]
-
-        filtered = ForYouService.filter_universities_by_profile(sample_lead, universities)
-
-        # Should be sorted by QS rank (lower is better)
-        assert filtered[0]["qs_rank_2026"] < filtered[1]["qs_rank_2026"]
-
-
-class TestForYouServiceScholarships:
-    """Test scholarship matching logic."""
-
-    def test_match_scholarships_by_country(self, sample_lead, sample_scholarship):
-        """Test matching scholarships by country."""
-        scholarships = [sample_scholarship]
-        matched = ForYouService.match_scholarships_by_profile(sample_lead, scholarships)
-
-        assert len(matched) == 1
-
-    def test_match_scholarships_by_level(self, sample_scholarship):
-        """Test matching scholarships by study level."""
-        lead_undergraduate = {
-            "target_countries": ["uk"],
-            "education_level": "Undergraduate",
-            "scholarship_interest": True,
-            "budget_range": "low",
-            "persona_type": "student",
-        }
-
-        scholarships = [sample_scholarship]  # Masters level only
-        matched = ForYouService.match_scholarships_by_profile(lead_undergraduate, scholarships)
-
-        assert len(matched) == 0
-
-    def test_scholarship_match_score(self, sample_scholarship):
-        """Test that scholarships get match scores."""
-        lead = {
-            "target_countries": ["uk"],
-            "education_level": "Masters",
-            "scholarship_interest": True,
-            "budget_range": "low",
-            "persona_type": "student",
-        }
-
-        scholarships = [sample_scholarship]
-        matched = ForYouService.match_scholarships_by_profile(lead, scholarships)
-
-        assert len(matched) == 1
-        assert "match_score" in matched[0]
-        assert matched[0]["match_score"] > 0
-
-
-class TestForYouServiceCosts:
-    """Test cost of living recommendations."""
-
-    def test_get_cost_recommendations(self, sample_lead, sample_cost):
-        """Test cost recommendations generation."""
-        cost_data = {
-            "uk": {
-                "london": sample_cost,
-            }
-        }
-
-        recommendations = ForYouService.get_cost_recommendations(sample_lead, cost_data)
-
-        assert len(recommendations) > 0
-        assert "city" in recommendations[0]
-        assert "monthly_cost" in recommendations[0]
-
-    def test_cost_recommendations_by_budget(self):
-        """Test that different budget ranges get different cost tiers."""
-        lead_low_budget = {
-            "target_countries": ["uk"],
-            "budget_range": "low",
-        }
-
-        lead_high_budget = {
-            "target_countries": ["uk"],
-            "budget_range": "high",
-        }
-
-        cost_data = {
-            "uk": {
-                "london": {
-                    "monthly": {
-                        "min": 1200,
-                        "realistic": 1700,
-                        "comfortable": 2500,
-                    }
-                }
-            }
-        }
-
-        rec_low = ForYouService.get_cost_recommendations(lead_low_budget, cost_data)
-        rec_high = ForYouService.get_cost_recommendations(lead_high_budget, cost_data)
-
-        assert rec_low[0]["monthly_cost"] <= rec_high[0]["monthly_cost"]
-
-
-# ────────────────────────────────────────────────────────────────────
-# KBService Tests
-# ────────────────────────────────────────────────────────────────────
-
-class TestKBService:
-    """Test knowledge base service."""
-
-    def test_load_universities(self, load_kb_service):
-        """Test loading universities from KB."""
-        unis = load_kb_service.load_universities()
-
-        assert len(unis) > 0
-        assert isinstance(unis, list)
-        assert all("country" in u for u in unis)
-
-    def test_load_scholarships(self, load_kb_service):
-        """Test loading scholarships from KB."""
-        scholarships = load_kb_service.load_scholarships()
-
-        assert len(scholarships) > 0
-        assert isinstance(scholarships, list)
-
-    def test_load_cost_of_living(self, load_kb_service):
-        """Test loading cost of living data."""
-        cost_data = load_kb_service.load_cost_of_living()
-
-        assert isinstance(cost_data, dict)
-        assert "uk" in cost_data or "ireland" in cost_data or "uae" in cost_data
-
-    def test_kb_caching(self, load_kb_service):
-        """Test that KB data is cached."""
-        unis1 = load_kb_service.load_universities()
-        unis2 = load_kb_service.load_universities()
-
-        # Should be same object due to caching
-        assert unis1 is unis2
-
-    def test_cache_clear(self, load_kb_service):
-        """Test clearing KB cache."""
-        load_kb_service.load_universities()
-        load_kb_service.clear_cache()
-
-        # After clearing, next load should fetch fresh data
-        unis = load_kb_service.load_universities()
-        assert len(unis) > 0
-
-    def test_load_all(self, load_kb_service):
-        """Test loading all KB data at once."""
-        all_data = load_kb_service.load_all()
-
-        assert "universities" in all_data
-        assert "scholarships" in all_data
-        assert "cost_data" in all_data
-
-
-# ────────────────────────────────────────────────────────────────────
-# LeadScoringService Tests
-# ────────────────────────────────────────────────────────────────────
-
-class TestLeadScoringService:
-    """Test lead scoring and data completeness calculations."""
-
-    def test_calculate_data_completeness_full(self, sample_lead):
-        """Test completeness calculation for fully filled lead."""
-        completeness = LeadScoringService.calculate_data_completeness(sample_lead)
-
-        # Sample lead has most fields filled
-        assert completeness >= 50
-
-    def test_calculate_data_completeness_empty(self, incomplete_lead):
-        """Test completeness calculation for nearly empty lead."""
-        completeness = LeadScoringService.calculate_data_completeness(incomplete_lead)
-
-        # Incomplete lead has very few fields
-        assert completeness < 30
-
-    def test_get_missing_fields(self, incomplete_lead):
-        """Test identifying missing fields."""
-        missing = LeadScoringService.get_missing_fields(incomplete_lead)
-
-        assert len(missing) > 0
-        assert all("field" in m and "priority" in m for m in missing)
-
-    def test_improvement_recommendations(self, incomplete_lead):
-        """Test improvement recommendations."""
-        missing = LeadScoringService.get_missing_fields(incomplete_lead)
-        recommendations = LeadScoringService.get_improvement_recommendations(
-            incomplete_lead, missing
+from __future__ import annotations
+
+import asyncio
+import time
+from unittest.mock import patch
+
+from src.services.llm import gemini as gemini_service
+from src.services.voice_agent.extractor import extract_updates
+from src.services.voice_agent.prompt_builder import build_system_prompt
+from src.services.voice_agent.scorer import score_lead
+
+
+def test_extract_updates_for_first_time_caller():
+    transcript = (
+        "Hi, my name is Riya Sharma. I am from Pune and planning for UK. "
+        "I want to study MSc Data Science. My IELTS score is 6.5 and my budget is 18 lakh."
+    )
+
+    updates = extract_updates(transcript, {})
+
+    assert updates["name"] == "Riya Sharma"
+    assert updates["location"] == "Pune"
+    assert updates["target_countries"] == ["UK"]
+    assert updates["test_type"] == "IELTS"
+    assert updates["test_score"] == 6.5
+    assert updates["budget_range"] == "18 Lakh INR"
+
+
+def test_extract_updates_does_not_overwrite_confirmed_fields():
+    transcript = "My name is Aarav and I am from Mumbai."
+    existing = {"name": "Already Known", "location": "Delhi"}
+
+    updates = extract_updates(transcript, existing)
+
+    assert "name" not in updates
+    assert "location" not in updates
+
+
+def test_score_lead_hot_candidate():
+    caller_doc = {
+        "course_interest": "MSc Data Science",
+        "target_countries": ["UK"],
+        "education_level": "Undergraduate",
+        "field": "Computer Science",
+        "gpa": 8.3,
+        "test_type": "IELTS",
+        "test_score": 6.5,
+        "budget_range": "20 Lakh INR",
+        "budget_status": "disclosed",
+        "scholarship_interest": True,
+        "intake_timing": "September 2025",
+        "callback_requested": True,
+    }
+
+    result = score_lead(caller_doc)
+
+    assert result["classification"] == "Hot"
+    assert result["lead_score"] >= 65
+
+
+def test_prompt_builder_switches_between_onboarding_and_returning_modes():
+    caller_doc = {"name": "Riya", "target_countries": ["UK"], "course_interest": "MSc Data Science"}
+
+    new_prompt = build_system_prompt(caller_doc, "en-IN", [], False)
+    returning_prompt = build_system_prompt(caller_doc, "en-IN", ["course"], True)
+
+    assert "FIRST-TIME ONBOARDING MODE" in new_prompt
+    assert "RETURNING CALLER MODE" in returning_prompt
+    assert "Respect prior context" in returning_prompt
+
+
+def test_gemini_sets_quota_cooldown_after_quota_error():
+    gemini_service._quota_cooldown_until_monotonic = 0.0
+
+    with patch("src.services.llm.gemini._build_model", side_effect=RuntimeError("429 quota exceeded")):
+        reply = asyncio.run(
+            gemini_service.generate_reply(
+                "system",
+                [{"role": "user", "content": "Hello"}],
+            )
         )
 
-        assert len(recommendations) > 0
-        assert all("priority" in r and "action" in r for r in recommendations)
+    assert reply == ""
+    assert gemini_service._quota_cooldown_until_monotonic > time.monotonic()
+    gemini_service._quota_cooldown_until_monotonic = 0.0
 
-    def test_calculate_lead_score(self, sample_lead):
-        """Test overall lead score calculation."""
-        score = LeadScoringService.calculate_lead_score(sample_lead)
 
-        assert 0 <= score <= 100
-        # Sample lead with test score and progress should score well
-        assert score > 30
+def test_gemini_skips_provider_calls_during_quota_cooldown():
+    gemini_service._quota_cooldown_until_monotonic = time.monotonic() + 30
 
-    def test_calculate_intent_score(self, sample_lead):
-        """Test intent score calculation."""
-        score = LeadScoringService.calculate_intent_score(sample_lead)
+    with patch("src.services.llm.gemini._build_model") as build_model:
+        reply = asyncio.run(
+            gemini_service.generate_reply(
+                "system",
+                [{"role": "user", "content": "Hello"}],
+            )
+        )
 
-        assert 0 <= score <= 100
-
-    def test_calculate_financial_score(self, sample_lead):
-        """Test financial score calculation."""
-        score = LeadScoringService.calculate_financial_score(sample_lead)
-
-        assert 0 <= score <= 100
-
-    def test_calculate_timeline_score(self, sample_lead):
-        """Test timeline score calculation."""
-        score = LeadScoringService.calculate_timeline_score(sample_lead)
-
-        assert 0 <= score <= 100
-
-    def test_scoring_consistency(self, sample_lead):
-        """Test that scores are consistent and reasonable."""
-        completeness = LeadScoringService.calculate_data_completeness(sample_lead)
-        lead_score = LeadScoringService.calculate_lead_score(sample_lead)
-        intent_score = LeadScoringService.calculate_intent_score(sample_lead)
-
-        # Lead score should be influenced by completeness
-        assert lead_score > 0
-        assert intent_score > 0
-
-    def test_scoring_with_empty_fields(self, incomplete_lead):
-        """Test scoring with mostly empty fields."""
-        completeness = LeadScoringService.calculate_data_completeness(incomplete_lead)
-        lead_score = LeadScoringService.calculate_lead_score(incomplete_lead)
-
-        assert completeness >= 0
-        assert lead_score >= 0
-        assert completeness < 30
+    assert reply == ""
+    build_model.assert_not_called()
+    gemini_service._quota_cooldown_until_monotonic = 0.0

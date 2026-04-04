@@ -6,9 +6,8 @@ from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Load .env files (same order as TS: root first, then backend)
 _backend_dir = Path(__file__).resolve().parent.parent.parent
 _root_dir = _backend_dir.parent
 
@@ -17,64 +16,51 @@ load_dotenv(_backend_dir / ".env", override=True)
 
 
 class Settings(BaseSettings):
-    # ─── Server ───
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=True)
+
     PORT: int = Field(default=5000)
     NODE_ENV: str = Field(default="development")
     FRONTEND_URL: str = Field(default="http://localhost:5173")
     PUBLIC_URL: str = Field(default="http://localhost:5000")
-    PUBLIC_URL_FAIL_FAST: bool = Field(default=False)
 
-    # ─── Twilio ───
-    TWILIO_ACCOUNT_SID: str
-    TWILIO_AUTH_TOKEN: str
-    TWILIO_PHONE_NUMBER: str
+    TWILIO_ACCOUNT_SID: str = Field(default="")
+    TWILIO_AUTH_TOKEN: str = Field(default="")
+    TWILIO_PHONE_NUMBER: str = Field(default="")
 
-    # ─── Sarvam AI (STT) ───
-    SARVAM_API_KEY: str
-    SARVAM_STT_PRIMARY_URL: str = Field(default="https://api.sarvam.ai/speech-to-text")
-    SARVAM_STT_FALLBACK_URL: str = Field(default="https://api.sarvam.ai/speech-to-text")
-    SARVAM_STT_MODEL: str = Field(default="saaras:v3")
-    SARVAM_STT_FALLBACK_MODEL: str = Field(default="saarika:v2.5")
-    SARVAM_STT_AUTH_HEADER: str = Field(default="api-subscription-key")
-    SARVAM_STT_FALLBACK_AUTH_HEADER: str = Field(default="Authorization")
-    SARVAM_STT_LANGUAGE_FIELD: str = Field(default="language_code")
-    SARVAM_STT_FALLBACK_LANGUAGE_FIELD: str = Field(default="language")
+    GROQ_API_KEY: str = Field(default="")
 
-    # ─── Featherless.ai (LLM) ───
-    FEATHERLESS_API_KEY: str
-    FEATHERLESS_MODEL: str = Field(default="meta-llama/Llama-3.1-8B-Instruct")
-    FEATHERLESS_FAST_MODEL: str = Field(default="meta-llama/Llama-3.1-8B-Instruct")
-    FEATHERLESS_BASE_URL: str = Field(default="https://api.featherless.ai/v1")
-    LLM_STREAM: bool = Field(default=True)
-    LLM_MAX_TOKENS: int = Field(default=250)
-    LLM_FIRST_SENTENCE_TOKEN_BUDGET: int = Field(default=120)
+    GEMINI_API_KEY: str = Field(default="")
+    GEMINI_MODEL: str = Field(default="gemini-2.5-flash")
+    GEMINI_MAX_RETRIES: int = Field(default=1)
+    GEMINI_RETRY_BACKOFF_BASE_SEC: float = Field(default=0.5)
+    GEMINI_QUOTA_COOLDOWN_SEC: int = Field(default=30)
 
-    # ─── Supabase ───
-    SUPABASE_URL: str
-    SUPABASE_SERVICE_KEY: str
+    SARVAM_API_KEY: str = Field(default="")
+    SARVAM_TTS_URL: str = Field(default="https://api.sarvam.ai/text-to-speech")
+    SARVAM_TTS_MODEL: str = Field(default="bulbul:v3")
+    SARVAM_TTS_DEFAULT_SPEAKER: str = Field(default="priya")
+    SARVAM_TTS_MAX_CHARS: int = Field(default=500)
 
-    # ─── Upstash Redis ───
-    UPSTASH_REDIS_REST_URL: str
-    UPSTASH_REDIS_REST_TOKEN: str
+    MONGODB_URI: str = Field(default="")
 
-    # ─── Voice ───
-    HTTP_TIMEOUT_SEC: int = Field(default=25)
-    WEBHOOK_RECORDING_DOWNLOAD_TIMEOUT_SEC: int = Field(default=5)
-    WEBHOOK_STT_TIMEOUT_SEC: int = Field(default=4)
-    WEBHOOK_STT_MAX_CONTRACTS: int = Field(default=2)
-    ASYNC_REPLY_CACHE_TTL_SEC: int = Field(default=120)
-    ORCHESTRATOR_INLINE_ENABLED: bool = Field(default=True)
-    ORCHESTRATOR_INLINE_TIMEOUT_SEC: float = Field(default=5.0)
-    TWILIO_RECORDING_DEDUPE_TTL_SEC: int = Field(default=600)
-    MAX_TURNS_PER_CALL: int = Field(default=4)
+    MAX_TURNS_PER_CALL: int = Field(default=8)
+    MAX_CONTEXT_MESSAGES: int = Field(default=20)
+    CONTEXT_SUMMARY_THRESHOLD: int = Field(default=16)
+    ORCHESTRATOR_TIMEOUT_SEC: float = Field(default=5.0)
     STT_REPROMPT_LIMIT: int = Field(default=2)
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    HTTP_TIMEOUT_SEC: float = Field(default=10.0)
+    WEBHOOK_RECORDING_DOWNLOAD_TIMEOUT_SEC: float = Field(default=10.0)
+    GROQ_STT_TIMEOUT_SEC: float = Field(default=10.0)
+    SARVAM_TTS_TIMEOUT_SEC: float = Field(default=10.0)
+    TWILIO_RECORDING_DEDUPE_TTL_SEC: int = Field(default=600)
+    TTS_CACHE_TTL_SEC: int = Field(default=60)
 
     def normalized_public_url(self) -> str:
         return self.PUBLIC_URL.rstrip("/")
+
+    def is_production(self) -> bool:
+        return self.NODE_ENV.strip().lower() in {"production", "staging"}
 
     def public_url_issues(self) -> list[str]:
         raw = self.PUBLIC_URL.strip()
@@ -92,23 +78,18 @@ class Settings(BaseSettings):
             issues.append("PUBLIC_URL must not include a path")
 
         host = (parsed.hostname or "").strip().lower()
-        if host in {"localhost", "127.0.0.1"}:
+        if host in {"localhost", "127.0.0.1"} and self.is_production():
             issues.append("PUBLIC_URL points to localhost")
 
         if host:
             try:
                 host_ip = ipaddress.ip_address(host)
-                if host_ip.is_private or host_ip.is_loopback:
+                if (host_ip.is_private or host_ip.is_loopback) and self.is_production():
                     issues.append("PUBLIC_URL points to a private or loopback IP")
             except ValueError:
                 pass
 
         return issues
-
-    def should_fail_fast_public_url(self) -> bool:
-        if self.PUBLIC_URL_FAIL_FAST:
-            return True
-        return self.NODE_ENV.lower() in {"production", "staging"}
 
 
 env = Settings()
