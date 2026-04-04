@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import bg_image3 from "../assets/bg_image3.png";
 
 const FEATURES = [
   "Personalised university & course shortlist",
@@ -24,23 +25,34 @@ const Register = () => {
   const [submitted, setSubmitted] = useState(false);
 
   return (
-    <section id="register" className="bg-fateh-paper px-6 py-20 md:px-10 lg:grid lg:grid-cols-2 lg:items-center lg:gap-20 lg:py-24">
+    <section
+      id="register"
+      className="relative overflow-hidden px-6 py-20 bg-cover bg-center md:px-10 lg:grid lg:grid-cols-2 lg:items-center lg:gap-20 lg:py-24"
+      style={{ backgroundImage: `url(${bg_image3})` }}
+    >
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        className="mb-14 lg:mb-0"
+        className="relative z-10 mb-14 lg:mb-0"
       >
-        <p className="text-[0.72rem] uppercase tracking-[0.18em] text-fateh-gold">Free Counselling</p>
-        <h2 className="mt-3 font-fateh-serif text-[clamp(2rem,3.5vw,3.2rem)] font-semibold leading-tight text-fateh-ink normal-case">
-          Book your session with a Fateh expert today.
+        <p className="text-[0.72rem] uppercase tracking-[0.18em] text-fateh-gold">
+          Free Counselling
+        </p>
+        <h2 className="mt-3 font-fateh-serif text-[clamp(2rem,3.5vw,3.2rem)] font-semibold leading-tight text-fateh-paper normal-case">
+          Book your session{" "}
+          <span className="text-fateh-ink">with a Fateh expert</span> today.
         </h2>
-        <p className="mt-6 text-[1.05rem] leading-[1.8] text-fateh-muted normal-case">
-          No fees. No obligation. Just honest, expert advice from a team that has conquered 40,000+ dreams.
+        <p className="mt-6 text-[1.05rem] leading-[1.8] text-fateh-paper/90 normal-case">
+          No fees. No obligation. Just honest, expert advice from a team that
+          has conquered 40,000+ dreams.
         </p>
         <ul className="mt-8 flex flex-col gap-3">
           {FEATURES.map((f) => (
-            <li key={f} className="flex items-center gap-3 text-[0.9rem] text-fateh-muted normal-case">
+            <li
+              key={f}
+              className="flex items-center gap-3 text-[0.9rem] text-fateh-paper/80 normal-case"
+            >
               <span className="text-fateh-gold" aria-hidden>
                 ✦
               </span>
@@ -57,20 +69,21 @@ const Register = () => {
         className="rounded bg-fateh-ink p-10 text-fateh-paper"
       >
         <AnimatePresence mode="wait">
-          {submitted ? (
+          {submitted ?
             <motion.div
               key="ok"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="py-8 text-center"
             >
-              <p className="font-fateh-serif text-2xl text-fateh-gold">Thank you</p>
+              <p className="font-fateh-serif text-2xl text-fateh-gold">
+                Thank you
+              </p>
               <p className="mt-3 text-sm text-white/55 normal-case">
                 A Fateh counsellor will reach out to you shortly.
               </p>
             </motion.div>
-          ) : (
-            <motion.form
+          : <motion.form
               key="form"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -81,17 +94,44 @@ const Register = () => {
               }}
               className="normal-case"
             >
-              <h3 className="font-fateh-serif text-2xl font-semibold text-white">Register Now</h3>
-              <p className="mt-2 text-[0.85rem] text-white/50">Free, no-obligation counselling session</p>
+              <h3 className="font-fateh-serif text-2xl font-semibold text-white">
+                Register Now
+              </h3>
+              <p className="mt-2 text-[0.85rem] text-white/50">
+                Free, no-obligation counselling session
+              </p>
 
               {[
-                { id: "name", label: "Full Name", type: "text", placeholder: "Your full name" },
-                { id: "email", label: "Email Address", type: "email", placeholder: "you@example.com" },
-                { id: "mobile", label: "Mobile Number", type: "tel", placeholder: "+91 00000 00000" },
-                { id: "city", label: "City", type: "text", placeholder: "Your city" },
+                {
+                  id: "name",
+                  label: "Full Name",
+                  type: "text",
+                  placeholder: "Your full name",
+                },
+                {
+                  id: "email",
+                  label: "Email Address",
+                  type: "email",
+                  placeholder: "you@example.com",
+                },
+                {
+                  id: "mobile",
+                  label: "Mobile Number",
+                  type: "tel",
+                  placeholder: "+91 00000 00000",
+                },
+                {
+                  id: "city",
+                  label: "City",
+                  type: "text",
+                  placeholder: "Your city",
+                },
               ].map((field) => (
                 <div key={field.id} className="mt-6">
-                  <label className="mb-2 block text-[0.75rem] uppercase tracking-[0.1em] text-white/50" htmlFor={field.id}>
+                  <label
+                    className="mb-2 block text-[0.75rem] uppercase tracking-[0.1em] text-white/50"
+                    htmlFor={field.id}
+                  >
                     {field.label}
                   </label>
                   <input
@@ -106,7 +146,10 @@ const Register = () => {
               ))}
 
               <div className="mt-6">
-                <label className="mb-2 block text-[0.75rem] uppercase tracking-[0.1em] text-white/50" htmlFor="centre">
+                <label
+                  className="mb-2 block text-[0.75rem] uppercase tracking-[0.1em] text-white/50"
+                  htmlFor="centre"
+                >
                   Nearest Fateh Centre
                 </label>
                 <select
@@ -133,7 +176,7 @@ const Register = () => {
                 Book Free Counselling →
               </button>
             </motion.form>
-          )}
+          }
         </AnimatePresence>
       </motion.div>
     </section>
