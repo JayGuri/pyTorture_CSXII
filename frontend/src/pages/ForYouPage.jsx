@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Sparkles,
@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import AskFatehModal from "../components/forYou/AskFatehModal";
+import UniversityMap from "../components/forYou/UniversityMap";
+import StaggeredMenu from "../components/StaggeredMenu/StaggeredMenu";
 import {
   PROGRAMS,
   allProgramDeadlines,
@@ -33,7 +35,8 @@ import {
   SAVED_SCENARIOS,
   INR_BUFFER,
 } from "../data/forYouPrograms";
-import { fetchInrPerUnit } from "../lib/exchangeRates";
+import { FOR_YOU_MENU_ITEMS } from "../data/forYouNavItems";
+import { fetchEurGbpInrSpot } from "../lib/exchangeRates";
 import { googleCalendarUrl } from "../lib/googleCalendar";
 
 const container = {
@@ -49,18 +52,13 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
 };
 
-const SHORTLIST = [
-  { name: "UCD", city: "Dublin", country: "Ireland", lat: 32, lng: 62 },
-  { name: "TCD", city: "Dublin", country: "Ireland", lat: 38, lng: 58 },
-  { name: "Manchester", city: "Manchester", country: "UK", lat: 48, lng: 28 },
-];
-
 function formatInr(n) {
   return `₹${Math.round(n).toLocaleString("en-IN")}`;
 }
 
 export default function ForYouPage() {
   const { user } = useAuth();
+  const location = useLocation();
   const first = user?.name?.split(" ")[0] || "there";
 
   const [selectedId, setSelectedId] = useState(PROGRAMS[0]?.id ?? "");
@@ -73,7 +71,14 @@ export default function ForYouPage() {
   const [passportFile, setPassportFile] = useState(null);
   const [passportError, setPassportError] = useState(null);
   const [passportDrag, setPassportDrag] = useState(false);
-  const [fx, setFx] = useState({ loading: false, error: null, inrPerUnit: null, date: null, source: null });
+  const [spot, setSpot] = useState({
+    loading: false,
+    error: null,
+    eurInr: null,
+    gbpInr: null,
+    date: null,
+    source: null,
+  });
   const [bottomReached, setBottomReached] = useState(false);
   const [scenariosOpen, setScenariosOpen] = useState(false);
   const bottomSentinelRef = useRef(null);
@@ -86,50 +91,68 @@ export default function ForYouPage() {
     [selected.id],
   );
 
-  useEffect(() => {
-    if (!selected?.currency) return undefined;
-    const ac = new AbortController();
-    let cancelled = false;
-    setFx((f) => ({ ...f, loading: true, error: null }));
-    fetchInrPerUnit(selected.currency, ac.signal)
-      .then(({ inrPerUnit, date, source }) => {
-        if (!cancelled) setFx({ loading: false, error: null, inrPerUnit, date, source });
-      })
-      .catch((e) => {
-        if (e.name === "AbortError" || cancelled) return;
-        setFx({
-          loading: false,
-          error: e?.message || "Could not load exchange rates.",
-          inrPerUnit: null,
-          date: null,
-          source: null,
-        });
-      });
-    return () => {
-      cancelled = true;
-      ac.abort();
-    };
-  }, [selected.currency]);
+  const mapMarkers = useMemo(
+    () =>
+      PROGRAMS.map((p) => ({
+        lat: p.mapLat,
+        lng: p.mapLng,
+        title: p.school,
+        sub: `${p.city} · ${p.title}`,
+      })),
+    [],
+  );
 
-  function retryFx() {
-    if (!selected?.currency) return;
+  const inrPerUnit = useMemo(() => {
+    if (!selected?.currency) return null;
+    if (selected.currency === "EUR") return spot.eurInr;
+    if (selected.currency === "GBP") return spot.gbpInr;
+    return null;
+  }, [selected.currency, spot.eurInr, spot.gbpInr]);
+
+  const spotAbortRef = useRef(null);
+
+  const fetchSpotRates = useCallback(() => {
+    spotAbortRef.current?.abort();
     const ac = new AbortController();
-    setFx((f) => ({ ...f, loading: true, error: null }));
-    fetchInrPerUnit(selected.currency, ac.signal)
-      .then(({ inrPerUnit, date, source }) => {
-        setFx({ loading: false, error: null, inrPerUnit, date, source });
+    spotAbortRef.current = ac;
+    setSpot((s) => ({ ...s, loading: true, error: null }));
+    fetchEurGbpInrSpot(ac.signal)
+      .then((r) => {
+        setSpot({
+          loading: false,
+          error: null,
+          eurInr: r.eurInr,
+          gbpInr: r.gbpInr,
+          date: r.date,
+          source: r.source,
+        });
       })
       .catch((e) => {
         if (e.name === "AbortError") return;
-        setFx({
+        setSpot({
           loading: false,
           error: e?.message || "Could not load exchange rates.",
-          inrPerUnit: null,
+          eurInr: null,
+          gbpInr: null,
           date: null,
           source: null,
         });
       });
-  }
+  }, []);
+
+  useEffect(() => {
+    fetchSpotRates();
+    return () => spotAbortRef.current?.abort();
+  }, [fetchSpotRates]);
+
+  useEffect(() => {
+    const hash = location.hash?.replace(/^#/, "");
+    if (!hash) return undefined;
+    const t = window.setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [location.hash, location.pathname]);
 
   useEffect(() => {
     const el = bottomSentinelRef.current;
@@ -145,9 +168,9 @@ export default function ForYouPage() {
   }, []);
 
   const financial = useMemo(() => {
-    if (!selected || !fx.inrPerUnit) return null;
+    if (!selected || typeof inrPerUnit !== "number" || !Number.isFinite(inrPerUnit)) return null;
     const subtotalForeign = selected.tuitionYear + selected.livingYear + selected.otherFeesYear;
-    const subtotalInr = subtotalForeign * fx.inrPerUnit;
+    const subtotalInr = subtotalForeign * inrPerUnit;
     const low = Math.max(0, subtotalInr - INR_BUFFER);
     const high = subtotalInr + INR_BUFFER;
     return {
@@ -155,11 +178,11 @@ export default function ForYouPage() {
       subtotalInr,
       low,
       high,
-      tuitionInr: selected.tuitionYear * fx.inrPerUnit,
-      livingInr: selected.livingYear * fx.inrPerUnit,
-      otherInr: selected.otherFeesYear * fx.inrPerUnit,
+      tuitionInr: selected.tuitionYear * inrPerUnit,
+      livingInr: selected.livingYear * inrPerUnit,
+      otherInr: selected.otherFeesYear * inrPerUnit,
     };
-  }, [selected, fx.inrPerUnit]);
+  }, [selected, inrPerUnit]);
 
   const simulateParse = (file) => {
     setResumeError(null);
@@ -227,7 +250,18 @@ export default function ForYouPage() {
   }, [scenariosOpen]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-fateh-paper pb-32 pt-24 md:pt-28">
+    <div className="relative min-h-screen overflow-x-hidden bg-fateh-paper pb-32 pt-24 md:pt-28">
+      <StaggeredMenu
+        isFixed
+        position="left"
+        items={FOR_YOU_MENU_ITEMS}
+        displaySocials={false}
+        displayItemNumbering
+        changeMenuColorOnOpen={false}
+        colors={["#0b0e1a", "#1a3560", "#c8a45a"]}
+        accentColor="#c8a45a"
+        menuButtonColor="#0b0e1a"
+      />
       <AskFatehModal open={askOpen} onClose={() => setAskOpen(false)} />
 
       <div
@@ -248,7 +282,10 @@ export default function ForYouPage() {
       />
 
       {/* Hero */}
-      <header className="relative overflow-hidden border-b border-fateh-gold/15 bg-fateh-ink text-fateh-paper">
+      <header
+        id="fy-overview"
+        className="relative scroll-mt-28 overflow-hidden border-b border-fateh-gold/15 bg-fateh-ink text-fateh-paper lg:scroll-mt-24"
+      >
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(105deg,transparent_0%,rgba(200,164,90,0.07)_45%,transparent_65%)]" />
         <div className="pointer-events-none absolute -right-32 top-0 h-[420px] w-[420px] rounded-full bg-fateh-gold/12 blur-[100px]" />
         <div className="pointer-events-none absolute -left-20 bottom-0 h-72 w-72 rounded-full bg-fateh-accent/25 blur-[90px]" />
@@ -364,15 +401,18 @@ export default function ForYouPage() {
       </header>
 
       {/* Quick actions */}
-      <div className="mx-auto max-w-7xl px-6 pt-10 md:px-10">
+      <div
+        id="fy-actions"
+        className="mx-auto max-w-6xl scroll-mt-28 px-5 pt-10 sm:px-6 md:scroll-mt-24 lg:max-w-6xl lg:pl-18 lg:pr-8"
+      >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 lg:gap-4">
           {[
             { label: "Ask Fateh", Icon: MessageCircle, sub: "AI chat", onClick: () => setAskOpen(true) },
-            { label: "Compare", Icon: GitCompare, sub: "Up to 3 courses", onClick: () => scrollToId("compare-mode") },
-            { label: "Deadlines", Icon: CalendarPlus, sub: "Reminders", onClick: () => scrollToId("deadlines-section") },
-            { label: "Scholarships", Icon: Landmark, sub: "Full list", onClick: () => scrollToId("scholarships-teaser") },
+            { label: "Compare", Icon: GitCompare, sub: "Up to 3 courses", onClick: () => scrollToId("fy-compare") },
+            { label: "Deadlines", Icon: CalendarPlus, sub: "Reminders", onClick: () => scrollToId("fy-deadlines") },
+            { label: "Scholarships", Icon: Landmark, sub: "Full list", onClick: () => scrollToId("fy-scholarships-teaser") },
             { label: "Explore site", Icon: Compass, sub: "Programmes", href: "/" },
-            { label: "Boost profile", Icon: Zap, sub: "CV upload", onClick: () => scrollToId("resume-section") },
+            { label: "Boost profile", Icon: Zap, sub: "CV upload", onClick: () => scrollToId("fy-profile") },
           ].map(({ label, Icon, sub, onClick, href }, i) => {
             const inner = (
               <>
@@ -416,12 +456,14 @@ export default function ForYouPage() {
         variants={container}
         initial="hidden"
         animate="show"
-        className="mx-auto grid max-w-7xl gap-6 px-6 py-10 md:gap-7 md:px-10 lg:grid-cols-12 lg:py-14"
+        className="mx-auto flex max-w-6xl flex-col gap-10 px-5 py-10 sm:px-6 md:gap-12 md:py-14 lg:pl-18 lg:pr-8"
       >
-        {/* Courses */}
+        {/* Courses + focus */}
+        <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
         <motion.section
+          id="fy-courses"
           variants={item}
-          className="rounded-2xl border border-fateh-border/80 bg-white/95 p-7 shadow-[0_28px_80px_-32px_rgba(11,14,26,0.2)] backdrop-blur-sm md:p-9 lg:col-span-8"
+          className="scroll-mt-28 rounded-2xl border border-fateh-border/80 bg-white/95 p-7 shadow-[0_20px_60px_-28px_rgba(11,14,26,0.18)] backdrop-blur-sm md:p-9 lg:col-span-8 lg:scroll-mt-24"
         >
           <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -501,7 +543,7 @@ export default function ForYouPage() {
         {/* Focus panel */}
         <motion.aside
           variants={item}
-          className="flex flex-col justify-between overflow-hidden rounded-2xl border border-fateh-ink/10 bg-fateh-ink p-7 text-fateh-paper shadow-[0_32px_80px_-28px_rgba(11,14,26,0.45)] md:p-8 lg:col-span-4"
+          className="flex flex-col justify-between overflow-hidden rounded-2xl border border-fateh-ink/10 bg-fateh-ink p-7 text-fateh-paper shadow-[0_32px_80px_-28px_rgba(11,14,26,0.45)] md:p-8 lg:col-span-4 lg:sticky lg:top-28 lg:self-start"
         >
           <div>
             <p className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-fateh-gold-light">Focus</p>
@@ -532,19 +574,20 @@ export default function ForYouPage() {
             ))}
           </ul>
         </motion.aside>
+        </div>
 
         {/* Comparison */}
         <motion.section
-          id="compare-mode"
+          id="fy-compare"
           variants={item}
-          className="rounded-2xl border border-fateh-accent/20 bg-linear-to-br from-fateh-ink via-[#12182a] to-fateh-ink p-7 text-fateh-paper shadow-xl md:p-9 lg:col-span-12"
+          className="scroll-mt-28 rounded-2xl border border-fateh-accent/20 bg-linear-to-br from-fateh-ink via-[#12182a] to-fateh-ink p-7 text-fateh-paper shadow-xl md:p-9 lg:scroll-mt-24"
         >
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-fateh-gold-light">Comparison</p>
-              <h2 className="mt-2 font-fateh-serif text-2xl font-semibold normal-case md:text-3xl">Side-by-side</h2>
+              <h2 className="mt-2 font-fateh-serif text-2xl font-semibold normal-case md:text-3xl">Universities side-by-side</h2>
               <p className="mt-2 max-w-2xl text-sm text-white/50 normal-case">
-                Add up to three courses from the cards above. Figures are indicative year-one totals in university currency.
+                Add up to three courses. Costs are indicative; lifestyle rows use reference city climate and great-circle distance from Delhi (planning aid only).
               </p>
             </div>
             {compareIds.length > 0 ? (
@@ -560,12 +603,12 @@ export default function ForYouPage() {
 
           {comparePrograms.length >= 2 ? (
             <div className="mt-8 overflow-x-auto rounded-xl border border-white/10">
-              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-white/10 bg-white/5">
-                    <th className="p-4 font-semibold text-fateh-gold-light normal-case">Course</th>
+                    <th className="w-44 p-4 font-semibold text-fateh-gold-light normal-case">Factor</th>
                     {comparePrograms.map((p) => (
-                      <th key={p.id} className="p-4 font-fateh-serif text-base font-semibold text-white normal-case">
+                      <th key={p.id} className="min-w-[200px] p-4 font-fateh-serif text-base font-semibold text-white normal-case">
                         {p.title}
                       </th>
                     ))}
@@ -574,8 +617,20 @@ export default function ForYouPage() {
                 <tbody className="text-white/80">
                   {[
                     { k: "University", fn: (p) => p.school },
+                    { k: "City", fn: (p) => p.city },
                     { k: "Country", fn: (p) => p.country },
                     { k: "Intake", fn: (p) => p.intake },
+                    {
+                      k: "Weather & climate",
+                      fn: (p) => p.weatherSummary,
+                    },
+                    {
+                      k: "Distance from Delhi (approx.)",
+                      fn: (p) => `${p.distanceFromDelhiKm.toLocaleString("en-IN")} km (great circle)`,
+                    },
+                    { k: "Typical flight time", fn: (p) => p.typicalFlightHrs },
+                    { k: "Living cost (tier)", fn: (p) => p.livingCostTier },
+                    { k: "Post-study work (summary)", fn: (p) => p.postStudyWorkSummary },
                     { k: "Currency", fn: (p) => p.currency },
                     {
                       k: "Tuition (yr)",
@@ -594,12 +649,12 @@ export default function ForYouPage() {
                       fn: (p) =>
                         `${p.currency === "EUR" ? "€" : "£"}${(p.tuitionYear + p.livingYear + p.otherFeesYear).toLocaleString()}`,
                     },
-                    { k: "Match", fn: (p) => `${p.match}%` },
+                    { k: "Profile match", fn: (p) => `${p.match}%` },
                   ].map((row) => (
-                    <tr key={row.k} className="border-b border-white/5">
+                    <tr key={row.k} className="border-b border-white/5 align-top">
                       <td className="p-4 text-xs font-semibold uppercase tracking-wider text-white/45">{row.k}</td>
                       {comparePrograms.map((p) => (
-                        <td key={p.id} className="p-4 normal-case">
+                        <td key={p.id} className="p-4 text-[0.8125rem] leading-relaxed normal-case">
                           {row.fn(p)}
                         </td>
                       ))}
@@ -617,11 +672,12 @@ export default function ForYouPage() {
           )}
         </motion.section>
 
+        <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
         {/* Deadlines */}
         <motion.section
-          id="deadlines-section"
+          id="fy-deadlines"
           variants={item}
-          className="rounded-2xl border border-fateh-border/80 bg-white/95 p-7 shadow-lg md:p-9 lg:col-span-7"
+          className="scroll-mt-28 rounded-2xl border border-fateh-border/80 bg-white/95 p-7 shadow-lg md:p-9 lg:scroll-mt-24"
         >
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -669,8 +725,9 @@ export default function ForYouPage() {
 
         {/* Financial clarity */}
         <motion.section
+          id="fy-budget"
           variants={item}
-          className="rounded-2xl border border-fateh-border/80 bg-white/95 p-7 shadow-[0_24px_70px_-30px_rgba(11,14,26,0.18)] backdrop-blur-sm md:p-9 lg:col-span-5"
+          className="scroll-mt-28 rounded-2xl border border-fateh-border/80 bg-white/95 p-7 shadow-[0_24px_70px_-30px_rgba(11,14,26,0.18)] backdrop-blur-sm md:p-9 lg:scroll-mt-24"
         >
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-fateh-gold/30 bg-fateh-gold/10">
@@ -703,21 +760,21 @@ export default function ForYouPage() {
             </div>
           </label>
 
-          {fx.loading ? (
+          {spot.loading && !spot.eurInr ? (
             <div className="mt-8 flex items-center gap-3 rounded-xl border border-fateh-border/80 bg-fateh-paper/80 px-4 py-6 text-sm text-fateh-muted">
               <RefreshCw className="h-5 w-5 animate-spin text-fateh-gold" strokeWidth={1.5} />
-              Fetching live {selected.currency} → INR…
+              Fetching live ECB reference rates (EUR &amp; GBP → INR)…
             </div>
-          ) : fx.error ? (
+          ) : spot.error ? (
             <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-5">
               <div className="flex gap-3">
                 <AlertCircle className="h-5 w-5 shrink-0 text-red-700" strokeWidth={1.5} />
                 <div>
-                  <p className="text-sm font-semibold text-red-900 normal-case">Could not load exchange rate</p>
-                  <p className="mt-1 text-xs text-red-800/90 normal-case">{fx.error}</p>
+                  <p className="text-sm font-semibold text-red-900 normal-case">Could not load exchange rates</p>
+                  <p className="mt-1 text-xs text-red-800/90 normal-case">{spot.error}</p>
                   <button
                     type="button"
-                    onClick={() => retryFx()}
+                    onClick={() => fetchSpotRates()}
                     className="mt-3 inline-flex items-center gap-2 rounded-lg bg-fateh-ink px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white"
                   >
                     <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} />
@@ -726,87 +783,133 @@ export default function ForYouPage() {
                 </div>
               </div>
             </div>
-          ) : financial ? (
+          ) : (
             <div className="mt-8 space-y-5">
-              <div className="rounded-xl border border-fateh-border/90 bg-linear-to-br from-fateh-paper to-fateh-gold-pale/25 p-5">
-                <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold">Local currency (year one)</p>
-                <ul className="mt-3 space-y-2 text-sm text-fateh-ink">
-                  <li className="flex justify-between normal-case">
-                    <span className="text-fateh-muted">Tuition</span>
-                    <span className="font-medium">
-                      {selected.currency === "EUR" ? "€" : "£"}
-                      {selected.tuitionYear.toLocaleString()}
-                    </span>
-                  </li>
-                  <li className="flex justify-between normal-case">
-                    <span className="text-fateh-muted">Living (estimate)</span>
-                    <span className="font-medium">
-                      {selected.currency === "EUR" ? "€" : "£"}
-                      {selected.livingYear.toLocaleString()}
-                    </span>
-                  </li>
-                  <li className="flex justify-between normal-case">
-                    <span className="text-fateh-muted">Fees &amp; misc</span>
-                    <span className="font-medium">
-                      {selected.currency === "EUR" ? "€" : "£"}
-                      {selected.otherFeesYear.toLocaleString()}
-                    </span>
-                  </li>
-                  <li className="flex justify-between border-t border-fateh-border/80 pt-3 font-fateh-serif text-lg font-semibold normal-case">
-                    <span>Subtotal</span>
-                    <span>
-                      {selected.currency === "EUR" ? "€" : "£"}
-                      {financial.subtotalForeign.toLocaleString()}
-                    </span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="rounded-xl border border-fateh-accent/15 bg-fateh-ink p-5 text-fateh-paper">
-                <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold-light">Indian rupees (live)</p>
-                <p className="mt-1 text-xs text-white/45 normal-case">
-                  1 {selected.currency} = {fx.inrPerUnit.toFixed(4)} INR
-                  {fx.date ? ` · ECB rate date ${fx.date}` : ""}
-                  {fx.source ? ` · ${fx.source}` : ""}
-                </p>
-                <ul className="mt-4 space-y-2 text-sm">
-                  <li className="flex justify-between text-white/75 normal-case">
-                    <span>Tuition</span>
-                    <span className="font-medium text-white">{formatInr(financial.tuitionInr)}</span>
-                  </li>
-                  <li className="flex justify-between text-white/75 normal-case">
-                    <span>Living</span>
-                    <span className="font-medium text-white">{formatInr(financial.livingInr)}</span>
-                  </li>
-                  <li className="flex justify-between text-white/75 normal-case">
-                    <span>Fees &amp; misc</span>
-                    <span className="font-medium text-white">{formatInr(financial.otherInr)}</span>
-                  </li>
-                  <li className="flex justify-between border-t border-white/10 pt-3 font-fateh-serif text-lg font-semibold text-fateh-gold-light normal-case">
-                    <span>Central estimate</span>
-                    <span>{formatInr(financial.subtotalInr)}</span>
-                  </li>
-                </ul>
-                <div className="mt-5 rounded-lg bg-white/5 px-4 py-3">
-                  <p className="text-[0.65rem] font-bold uppercase tracking-wider text-fateh-gold-light/90">
-                    Planning band (± ₹1,00,000)
+              {spot.eurInr != null && spot.gbpInr != null ? (
+                <div className="rounded-xl border border-fateh-gold/30 bg-fateh-gold-pale/40 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold">Live spot (INR)</p>
+                    <button
+                      type="button"
+                      onClick={() => fetchSpotRates()}
+                      className="inline-flex items-center gap-1.5 text-[0.65rem] font-semibold uppercase tracking-wider text-fateh-accent hover:text-fateh-ink"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} />
+                      Refresh
+                    </button>
+                  </div>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-lg border border-fateh-border/80 bg-white/90 px-4 py-3">
+                      <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-fateh-muted">1 EUR equals</p>
+                      <p className="mt-1 font-fateh-serif text-2xl font-semibold text-fateh-ink">
+                        {spot.eurInr.toFixed(4)} <span className="text-base font-sans font-medium text-fateh-muted">INR</span>
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-fateh-border/80 bg-white/90 px-4 py-3">
+                      <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-fateh-muted">1 GBP equals</p>
+                      <p className="mt-1 font-fateh-serif text-2xl font-semibold text-fateh-ink">
+                        {spot.gbpInr.toFixed(4)} <span className="text-base font-sans font-medium text-fateh-muted">INR</span>
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-fateh-muted leading-relaxed normal-case">
+                    ECB reference date <span className="font-medium text-fateh-ink">{spot.date || "—"}</span>
+                    {spot.source ? ` · ${spot.source}` : ""}. Bank and card rates include spreads — use this as a planning midpoint.
                   </p>
-                  <p className="mt-2 font-fateh-serif text-xl font-semibold text-white normal-case">
-                    {formatInr(financial.low)} — {formatInr(financial.high)}
-                  </p>
-                  <p className="mt-2 text-xs text-white/45 leading-relaxed normal-case">
-                    Use the band for FX movement and small fee changes. Official invoices and your award letter remain the source of truth.
+                  <p className="mt-2 text-xs text-fateh-muted normal-case">
+                    Selected course uses <span className="font-semibold text-fateh-ink">{selected.currency}</span> → INR at{" "}
+                    <span className="font-semibold text-fateh-ink">{inrPerUnit != null ? inrPerUnit.toFixed(4) : "—"}</span> for
+                    the breakdown below.
                   </p>
                 </div>
-              </div>
-            </div>
-          ) : null}
-        </motion.section>
+              ) : null}
 
+              {financial ? (
+                <>
+                  <div className="rounded-xl border border-fateh-border/90 bg-linear-to-br from-fateh-paper to-fateh-gold-pale/25 p-5">
+                    <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold">Year-one fees (local currency)</p>
+                    <ul className="mt-3 space-y-2 text-sm text-fateh-ink">
+                      <li className="flex justify-between normal-case">
+                        <span className="text-fateh-muted">Tuition</span>
+                        <span className="font-medium">
+                          {selected.currency === "EUR" ? "€" : "£"}
+                          {selected.tuitionYear.toLocaleString()}
+                        </span>
+                      </li>
+                      <li className="flex justify-between normal-case">
+                        <span className="text-fateh-muted">Living (estimate)</span>
+                        <span className="font-medium">
+                          {selected.currency === "EUR" ? "€" : "£"}
+                          {selected.livingYear.toLocaleString()}
+                        </span>
+                      </li>
+                      <li className="flex justify-between normal-case">
+                        <span className="text-fateh-muted">Fees &amp; misc</span>
+                        <span className="font-medium">
+                          {selected.currency === "EUR" ? "€" : "£"}
+                          {selected.otherFeesYear.toLocaleString()}
+                        </span>
+                      </li>
+                      <li className="flex justify-between border-t border-fateh-border/80 pt-3 font-fateh-serif text-lg font-semibold normal-case">
+                        <span>Subtotal</span>
+                        <span>
+                          {selected.currency === "EUR" ? "€" : "£"}
+                          {financial.subtotalForeign.toLocaleString()}
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="rounded-xl border border-fateh-accent/15 bg-fateh-ink p-5 text-fateh-paper">
+                    <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold-light">Converted to INR (same live rate)</p>
+                    <p className="mt-1 text-xs text-white/45 normal-case">
+                      1 {selected.currency} = {inrPerUnit != null ? inrPerUnit.toFixed(4) : "—"} INR · ECB date {spot.date || "—"}
+                    </p>
+                    <ul className="mt-4 space-y-2 text-sm">
+                      <li className="flex justify-between text-white/75 normal-case">
+                        <span>Tuition</span>
+                        <span className="font-medium text-white">{formatInr(financial.tuitionInr)}</span>
+                      </li>
+                      <li className="flex justify-between text-white/75 normal-case">
+                        <span>Living</span>
+                        <span className="font-medium text-white">{formatInr(financial.livingInr)}</span>
+                      </li>
+                      <li className="flex justify-between text-white/75 normal-case">
+                        <span>Fees &amp; misc</span>
+                        <span className="font-medium text-white">{formatInr(financial.otherInr)}</span>
+                      </li>
+                      <li className="flex justify-between border-t border-white/10 pt-3 font-fateh-serif text-lg font-semibold text-fateh-gold-light normal-case">
+                        <span>Central estimate</span>
+                        <span>{formatInr(financial.subtotalInr)}</span>
+                      </li>
+                    </ul>
+                    <div className="mt-5 rounded-lg bg-white/5 px-4 py-3">
+                      <p className="text-[0.65rem] font-bold uppercase tracking-wider text-fateh-gold-light/90">
+                        Planning band (± ₹1,00,000 on total)
+                      </p>
+                      <p className="mt-2 font-fateh-serif text-xl font-semibold text-white normal-case">
+                        {formatInr(financial.low)} — {formatInr(financial.high)}
+                      </p>
+                      <p className="mt-2 text-xs text-white/45 leading-relaxed normal-case">
+                        Covers typical FX drift and small fee changes. Official invoices and award letters always win.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-fateh-muted normal-case">Rates loaded — pick a course to see the INR breakdown.</p>
+              )}
+            </div>
+          )}
+        </motion.section>
+        </div>
+
+        <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
         {/* Visa help */}
         <motion.section
+          id="fy-visa"
           variants={item}
-          className="rounded-2xl border border-fateh-gold/25 bg-linear-to-br from-white via-fateh-paper to-fateh-gold-pale/35 p-7 shadow-lg md:p-9 lg:col-span-6"
+          className="scroll-mt-28 rounded-2xl border border-fateh-gold/25 bg-linear-to-br from-white via-fateh-paper to-fateh-gold-pale/35 p-7 shadow-lg md:p-9 lg:scroll-mt-24"
         >
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-fateh-gold/35 bg-fateh-gold/12">
@@ -866,9 +969,9 @@ export default function ForYouPage() {
 
         {/* Scholarships teaser */}
         <motion.section
-          id="scholarships-teaser"
+          id="fy-scholarships-teaser"
           variants={item}
-          className="flex flex-col justify-between overflow-hidden rounded-2xl border border-fateh-accent/20 bg-fateh-ink p-7 text-fateh-paper shadow-xl md:p-9 lg:col-span-6"
+          className="flex flex-col justify-between overflow-hidden rounded-2xl border border-fateh-accent/20 bg-fateh-ink p-7 text-fateh-paper shadow-xl md:p-9"
         >
           <div>
             <p className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-fateh-gold-light">Scholarships</p>
@@ -886,11 +989,13 @@ export default function ForYouPage() {
             <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
           </Link>
         </motion.section>
+        </div>
 
         {/* Outcome stories */}
         <motion.section
+          id="fy-stories"
           variants={item}
-          className="rounded-2xl border border-fateh-border/80 bg-white/95 p-7 shadow-lg md:p-9 lg:col-span-12"
+          className="scroll-mt-28 rounded-2xl border border-fateh-border/80 bg-white/95 p-7 shadow-lg md:p-9 lg:scroll-mt-24"
         >
           <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -926,7 +1031,7 @@ export default function ForYouPage() {
             </div>
           )}
 
-          {fx.error && storiesForCourse.length > 0 ? (
+          {spot.error && storiesForCourse.length > 0 ? (
             <p className="mt-6 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950 normal-case">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.5} />
               Live currency failed to load — financial figures may be stale; outcome stories above are still valid.
@@ -934,91 +1039,42 @@ export default function ForYouPage() {
           ) : null}
         </motion.section>
 
-        {/* Map */}
+        {/* Map — OpenStreetMap */}
         <motion.section
+          id="fy-map"
           variants={item}
-          className="overflow-hidden rounded-2xl border border-fateh-border/80 bg-fateh-ink text-fateh-paper shadow-xl lg:col-span-7"
+          className="scroll-mt-28 overflow-hidden rounded-2xl border border-fateh-border/80 bg-fateh-ink text-fateh-paper shadow-xl lg:scroll-mt-24"
         >
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-7 py-6 md:px-9">
             <div>
               <p className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-fateh-gold-light">Geography</p>
-              <h2 className="mt-2 font-fateh-serif text-2xl font-semibold normal-case">Where you&apos;re aiming</h2>
+              <h2 className="mt-2 font-fateh-serif text-2xl font-semibold normal-case">Campus locations</h2>
+              <p className="mt-2 max-w-2xl text-sm text-white/45 normal-case">
+                Real map data via OpenStreetMap. Pins use each university&apos;s approximate campus coordinates.
+              </p>
             </div>
-            <span className="rounded-lg bg-white/10 px-3 py-1.5 text-[0.65rem] uppercase tracking-wider text-white/60">
-              Interactive · v1
-            </span>
           </div>
-          <div className="relative aspect-16/10 min-h-[240px] overflow-hidden bg-[linear-gradient(165deg,#1a2336_0%,#0b0e1a_40%,#152238_100%)]">
-            <div
-              className="absolute inset-0 opacity-[0.14]"
-              style={{
-                backgroundImage: `linear-gradient(rgba(200,164,90,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(200,164,90,0.5) 1px, transparent 1px)`,
-                backgroundSize: "40px 40px",
-              }}
-            />
-            <svg className="absolute inset-0 h-full w-full opacity-30" aria-hidden>
-              <defs>
-                <linearGradient id="mapLine" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#c8a45a" stopOpacity="0" />
-                  <stop offset="50%" stopColor="#c8a45a" stopOpacity="0.6" />
-                  <stop offset="100%" stopColor="#c8a45a" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <motion.path
-                d="M 62 32 Q 48 48 38 58"
-                fill="none"
-                stroke="url(#mapLine)"
-                strokeWidth="1.5"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 1.5, ease: "easeInOut" }}
-              />
-              <motion.path
-                d="M 58 58 L 28 48"
-                fill="none"
-                stroke="url(#mapLine)"
-                strokeWidth="1.5"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 1.2, delay: 0.3, ease: "easeInOut" }}
-              />
-            </svg>
-            {SHORTLIST.map((u) => (
-              <div
-                key={u.name}
-                className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
-                style={{ left: `${u.lng}%`, top: `${u.lat}%` }}
-              >
-                <motion.span
-                  className="relative flex h-4 w-4 items-center justify-center rounded-full border-2 border-fateh-gold bg-fateh-ink shadow-[0_0_24px_rgba(200,164,90,0.75)]"
-                  animate={{ scale: [1, 1.12, 1] }}
-                  transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full bg-fateh-gold" />
-                </motion.span>
-                <span className="mt-2 whitespace-nowrap rounded-md bg-fateh-ink/95 px-2.5 py-1 text-[0.65rem] font-semibold text-fateh-gold-light ring-1 ring-fateh-gold/35 backdrop-blur-sm">
-                  {u.name}
-                </span>
-              </div>
-            ))}
+          <div className="isolate bg-[#1a2336] p-3 md:p-4">
+            <UniversityMap markers={mapMarkers} />
           </div>
           <div className="grid gap-px bg-white/15 sm:grid-cols-3">
-            {SHORTLIST.map((u) => (
-              <div key={u.name} className="bg-fateh-ink/95 px-5 py-5 transition hover:bg-white/4">
-                <p className="font-fateh-serif text-lg font-semibold text-white normal-case">{u.name}</p>
+            {PROGRAMS.map((p) => (
+              <div key={p.id} className="bg-fateh-ink/95 px-5 py-5 transition hover:bg-white/4">
+                <p className="font-fateh-serif text-lg font-semibold text-white normal-case">{p.school}</p>
                 <p className="mt-1 text-xs text-white/45 normal-case">
-                  {u.city}, {u.country}
+                  {p.city}, {p.country}
                 </p>
               </div>
             ))}
           </div>
         </motion.section>
 
+        <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
         {/* Programme detail — synced to selection */}
         <motion.section
-          id="programme-focus"
+          id="fy-programme"
           variants={item}
-          className="rounded-2xl border border-fateh-gold/25 bg-linear-to-br from-white via-fateh-paper to-fateh-gold-pale/40 p-7 shadow-lg md:p-9 lg:col-span-5"
+          className="scroll-mt-28 rounded-2xl border border-fateh-gold/25 bg-linear-to-br from-white via-fateh-paper to-fateh-gold-pale/40 p-7 shadow-lg md:p-9 lg:scroll-mt-24"
         >
           <p className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-fateh-gold">Selection</p>
           <h2 className="mt-2 font-fateh-serif text-2xl font-semibold text-fateh-ink md:text-3xl normal-case">
@@ -1051,9 +1107,9 @@ export default function ForYouPage() {
 
         {/* Resume */}
         <motion.section
-          id="resume-section"
+          id="fy-profile"
           variants={item}
-          className="overflow-hidden rounded-2xl border border-fateh-gold/20 bg-fateh-ink p-7 text-fateh-paper shadow-2xl md:p-9 lg:col-span-6"
+          className="scroll-mt-28 overflow-hidden rounded-2xl border border-fateh-gold/20 bg-fateh-ink p-7 text-fateh-paper shadow-2xl md:p-9 lg:scroll-mt-24"
         >
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -1155,11 +1211,12 @@ export default function ForYouPage() {
             </div>
           ) : null}
         </motion.section>
+        </div>
 
       </motion.div>
 
       {/* Saved scenarios — revealed only after bottom sentinel fires + user clicks */}
-      <div ref={scenariosRef} className="mx-auto max-w-7xl px-6 md:px-10">
+      <div ref={scenariosRef} className="mx-auto max-w-6xl px-5 md:px-6 lg:pl-18 lg:pr-8">
         {scenariosOpen ? (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="pb-8">
             <section className="rounded-2xl border border-fateh-border/80 bg-white/95 p-7 shadow-lg md:p-9">
@@ -1185,7 +1242,7 @@ export default function ForYouPage() {
       </div>
 
       {/* Bottom sentinel + reveal control */}
-      <div ref={bottomSentinelRef} className="mx-auto h-px w-full max-w-7xl" aria-hidden />
+      <div ref={bottomSentinelRef} className="mx-auto h-px w-full max-w-6xl lg:pl-18" aria-hidden />
 
       {bottomReached && !scenariosOpen ? (
         <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 justify-center px-4">
