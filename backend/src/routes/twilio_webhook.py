@@ -37,15 +37,9 @@ LANGUAGE_BY_DIGIT: Dict[str, Language] = {
 WELCOME_PROMPT = "Welcome to Fateh Education AI assistant. Press 1 for English. Press 2 for Hindi. Press 3 for Marathi."
 
 LANGUAGE_CONFIRMATION: Dict[Language, str] = {
-    "en-IN": "You selected English. Please tell me your question after the beep.",
-    "hi-IN": "Aapne Hindi chuna hai. Kripya beep ke baad apna sawaal batayiye.",
-    "mr-IN": "तुम्ही मराठी निवडली आहे. कृपया बीपनंतर तुमचा प्रश्न सांगा.",
-}
-
-FOLLOW_UP: Dict[Language, str] = {
-    "en-IN": "You can ask your next question after the beep.",
-    "hi-IN": "Beep ke baad aap apna agla sawaal puch sakte hain.",
-    "mr-IN": "बीपनंतर तुम्ही पुढचा प्रश्न विचारू शकता.",
+    "en-IN": "Hi, I am Priya, your Fateh Education counsellor. Are you thinking of studying in the UK or Ireland?",
+    "hi-IN": "Namaste, main Priya hoon, aapki Fateh Education counsellor. Kya aap pachai ke liye UK ya Ireland ka soch rahe hain?",
+    "mr-IN": "नमस्कार, मी प्रिया, तुमची फतेह एज्युकेशन कौन्सेलर. तुम्ही यूके किंवा आयर्लंडमध्ये शिकण्याचा विचार करत आहात का?",
 }
 
 NO_AUDIO: Dict[Language, str] = {
@@ -245,14 +239,16 @@ async def voice(request: Request):
     session_id = result.data[0]["id"] if result.data else None
 
     # Create initial lead record with phone number (early onboarding)
+    # classification must be Hot/Warm/Cold per DB check constraint — use Cold as default
     if session_id:
         try:
-            supabase.table("leads").insert({
+            supabase.table("leads").upsert({
                 "session_id": session_id,
                 "phone": caller,
-                "classification": "New",
+                "classification": "Cold",
+                "lead_score": 0,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).execute()
+            }, on_conflict="session_id").execute()
             logger.info(f"Lead onboarded | session_id={session_id} phone={caller}")
         except Exception as exc:
             logger.warning(f"Failed to create initial lead record | session_id={session_id} err={exc}")
@@ -352,7 +348,6 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
             reply_text = replay or PROCESSING_REPLY[language]
             body = _twiml([
                 _say(reply_text, language),
-                _say(FOLLOW_UP[language], language),
                 _record(language),
             ])
             return Response(content=body, media_type="text/xml")
@@ -363,7 +358,6 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
         prompt = replay or NO_AUDIO[language]
         body = _twiml([
             _say(prompt, language),
-            _say(FOLLOW_UP[language], language),
             _record(language),
         ])
         return Response(content=body, media_type="text/xml")
@@ -419,7 +413,6 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
 
             body = _twiml([
                 _say(NO_AUDIO[language], language),
-                _say(FOLLOW_UP[language], language),
                 _record(language),
             ])
             return Response(content=body, media_type="text/xml")
@@ -484,7 +477,6 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
         reply_text = replay or FALLBACK_REPLY[language]
         body = _twiml([
             _say(reply_text, language),
-            _say(FOLLOW_UP[language], language),
             _record(language),
         ])
         return Response(content=body, media_type="text/xml")
@@ -519,7 +511,6 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
     else:
         body = _twiml([
             _say(reply_text, language),
-            _say(FOLLOW_UP[language], language),
             _record(language),
         ])
         return Response(content=body, media_type="text/xml")

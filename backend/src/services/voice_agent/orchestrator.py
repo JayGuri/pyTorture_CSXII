@@ -11,6 +11,7 @@ from src.services.voice_agent.language_detector import detect_language_from_text
 from src.services.voice_agent.persona_engine import detect_persona, get_persona_instructions
 from src.services.voice_agent.data_extractor import extract_lead_data_from_text
 from src.services.voice_agent.lead_scorer import calculate_lead_score
+from src.services.voice_agent.action_engine import generate_recommended_actions
 from src.services.rag.retriever import retrieve_kb
 from src.services.cache.cache_injector import inject_live_data
 from src.services.rag.prompt_assembler import assemble_prompt
@@ -22,7 +23,12 @@ from src.services.transcription.live_stream import (
     broadcast_lead_update,
 )
 from src.db.supabase_client import supabase
-from src.models.types import Language
+from src.models.types import (
+    ExtractedData,
+    Language,
+    LeadSnapshot,
+    PersonaType,
+)
 from src.utils.logger import logger
 
 
@@ -30,36 +36,6 @@ class ProcessTurnResult:
     def __init__(self, reply: str, analysis: Dict[str, Any]):
         self.reply = reply
         self.analysis = analysis
-
-
-def _coerce_optional_float(value: Any) -> float | None:
-    if value in (None, ""):
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _sanitize_extracted_data(extracted: Dict[str, Any]) -> Dict[str, Any]:
-    sanitized = dict(extracted)
-
-    for field in ("gpa", "ielts_score", "pte_score"):
-        if field in sanitized:
-            sanitized[field] = _coerce_optional_float(sanitized.get(field))
-
-    countries = sanitized.get("target_countries")
-    if countries is not None:
-        if isinstance(countries, list):
-            sanitized["target_countries"] = [str(country) for country in countries if country]
-        else:
-            sanitized["target_countries"] = [str(countries)]
-
-    budget_status = sanitized.get("budget_status")
-    if budget_status not in {None, "disclosed", "deferred", "not_asked"}:
-        sanitized["budget_status"] = "not_asked"
-
-    return sanitized
 
 
 async def process_turn(
@@ -136,32 +112,88 @@ async def process_turn(
         await broadcast_transcript(session_id, reply, True, "ai")
         timings["ai_broadcast_ms"] = int((perf_counter() - ai_broadcast_started) * 1000)
 
-        # Step 9: Extract lead data & score (fire-and-forget background task)
+        # Step 9: Extract lead data, score, and persist LeadSnapshot (background)
         async def _post_process():
             try:
                 if not session_id:
-                    logger.warning(f"Skipping lead upsert due to missing session_id | call_sid={state.get('call_sid')}")
+                    logger.warning(
+                        f"Skipping lead upsert due to missing session_id | "
+                        f"call_sid={state.get('call_sid')}"
+                    )
                     return
 
-                extracted = extract_lead_data_from_text(transcript, state.get("extracted_data", {}))
-                extracted = _sanitize_extracted_data(extracted)
-                state["extracted_data"] = extracted
+                # ── Build full snapshot ───────────────────────
+                existing_obj: ExtractedData | None = state.get("extracted_data_obj")
+                extracted, objections, emotional, completeness_count = \
+                    extract_lead_data_from_text(transcript, existing_obj)
 
-                score_result = calculate_lead_score(extracted)
-                classification = score_result.classification
-                if classification not in {"Hot", "Warm", "Cold"}:
-                    classification = "Cold"
+                score = calculate_lead_score(extracted)
 
+                # Build a preliminary snapshot for action generation
+                preliminary_snapshot = LeadSnapshot(
+                    extracted_data=extracted,
+                    lead_score=score,
+                    persona=persona,
+                    unresolved_objections=objections,
+                )
+
+                snapshot = LeadSnapshot(
+                    session_id=session_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    persona=persona,
+                    extracted_data=extracted,
+                    lead_score=score,
+                    recommended_actions=generate_recommended_actions(preliminary_snapshot),
+                    unresolved_objections=objections,
+                    data_completeness=completeness_count,
+                    data_completeness_pct=round((completeness_count / 12) * 100),
+                    emotional_state=emotional,
+                )
+
+                state["extracted_data_obj"] = extracted  # keep typed object in state
+
+                # ── Flatten to DB columns (existing schema unchanged) ──
                 lead_payload = {
                     "session_id": session_id,
-                    **extracted,
-                    "lead_score": score_result.score,
-                    "classification": classification,
-                    "intent_score": score_result.intent_score,
-                    "financial_score": score_result.financial_score,
-                    "timeline_score": score_result.timeline_score,
-                    "persona_type": persona,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    # Flat fields from nested model
+                    "name":             extracted.name,
+                    "phone":            extracted.phone,
+                    "email":            extracted.email,
+                    "location":         extracted.location.city,
+                    "education_level":  extracted.education.level,
+                    "field":            extracted.education.field,
+                    "institution":      extracted.education.institution,
+                    "gpa":              extracted.education.gpa_percentage,
+                    "target_countries": extracted.preferences.target_countries,
+                    "course_interest":  extracted.preferences.course_interest,
+                    "intake_timing":    extracted.preferences.intake_timing,
+                    "ielts_score": (
+                        extracted.test_status.score
+                        if extracted.test_status.exam_type == "IELTS" else None
+                    ),
+                    "pte_score": (
+                        extracted.test_status.score
+                        if extracted.test_status.exam_type == "PTE" else None
+                    ),
+                    "budget_range":          extracted.financial.budget_range,
+                    "budget_status":         extracted.financial.budget_status.value,
+                    "scholarship_interest":  extracted.financial.scholarship_interest,
+                    "application_stage":     extracted.timeline.application_stage,
+                    # Scores — map new names back to existing DB columns
+                    "lead_score":       score.total,
+                    "intent_score":     score.intent_seriousness,
+                    "financial_score":  score.financial_readiness,
+                    "timeline_score":   score.timeline_urgency,
+                    "classification":   score.classification.value,
+                    "data_completeness": snapshot.data_completeness_pct,  # DB stores pct
+                    "persona_type":     snapshot.persona.value,
+                    "emotional_anxiety":    emotional.anxiety.value,
+                    "emotional_confidence": emotional.confidence.value,
+                    "emotional_urgency":    emotional.urgency.value,
+                    "unresolved_objections":  objections,
+                    # Full snapshot in counsellor_brief JSONB
+                    "counsellor_brief": snapshot.model_dump(),
+                    "updated_at":       datetime.now(timezone.utc).isoformat(),
                 }
 
                 # Upsert lead in Supabase
@@ -172,20 +204,26 @@ async def process_turn(
                     ).execute()
                 except Exception as exc:
                     logger.error(
-                        f"Lead upsert failed | session_id={session_id} call_sid={state.get('call_sid')} "
+                        f"Lead upsert failed | session_id={session_id} "
+                        f"call_sid={state.get('call_sid')} "
                         f"keys={sorted(lead_payload.keys())} err={exc}"
                     )
 
-                # Broadcast to dashboard
+                # Broadcast score update (same Socket.IO event shape for frontend)
                 await broadcast_score_update(
                     session_id,
-                    score_result.score,
-                    classification,
-                    score_result.intent_score,
-                    score_result.financial_score,
-                    score_result.timeline_score,
+                    score.total,
+                    score.classification.value,
+                    score.intent_seriousness,
+                    score.financial_readiness,
+                    score.timeline_urgency,
                 )
-                await broadcast_lead_update(session_id, {**extracted, "persona": persona})
+
+                # Broadcast lead update with count-based completeness for dashboard
+                await broadcast_lead_update(session_id, {
+                    **snapshot.model_dump(),
+                    "data_completeness_count": completeness_count,  # 0-12 for UI
+                })
 
                 # Log KB gap if no relevant chunks found
                 if len(kb_chunks) == 0 and len(transcript) > 20:
@@ -195,7 +233,7 @@ async def process_turn(
                 supabase.table("call_sessions").update({
                     "transcript": history,
                     "language_detected": detected_lang or lang,
-                    "persona_type": persona,
+                    "persona_type": persona.value,
                 }).eq("id", session_id).execute()
 
             except Exception as exc:

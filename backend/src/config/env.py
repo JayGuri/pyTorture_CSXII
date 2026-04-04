@@ -43,11 +43,11 @@ class Settings(BaseSettings):
     # ─── Featherless.ai (LLM) ───
     FEATHERLESS_API_KEY: str
     FEATHERLESS_MODEL: str = Field(default="meta-llama/Llama-3.1-8B-Instruct")
-    FEATHERLESS_FAST_MODEL: str = Field(default="Qwen/Qwen2.5-3B-Instruct")
+    FEATHERLESS_FAST_MODEL: str = Field(default="meta-llama/Llama-3.1-8B-Instruct")
     FEATHERLESS_BASE_URL: str = Field(default="https://api.featherless.ai/v1")
     LLM_STREAM: bool = Field(default=True)
-    LLM_MAX_TOKENS: int = Field(default=150)
-    LLM_FIRST_SENTENCE_TOKEN_BUDGET: int = Field(default=60)
+    LLM_MAX_TOKENS: int = Field(default=250)
+    LLM_FIRST_SENTENCE_TOKEN_BUDGET: int = Field(default=120)
 
     # ─── Supabase ───
     SUPABASE_URL: str

@@ -15,6 +15,10 @@ client = AsyncOpenAI(
 
 _SENTENCE_BOUNDARY_RE = re.compile(r"[.!?\u0964]")
 
+# Minimum chars before we early-return on a sentence boundary.
+# Prevents filler phrases like "Sure thing!" from being sent as the full reply.
+_MIN_EARLY_RETURN_CHARS = 60
+
 
 def _selected_model() -> str:
     model = env.FEATHERLESS_FAST_MODEL.strip() if env.FEATHERLESS_FAST_MODEL else ""
@@ -82,10 +86,10 @@ async def generate_reply_streaming(
 
             current_text = "".join(chunks).strip()
             first_sentence = _extract_first_sentence(current_text)
-            if first_sentence:
+            if first_sentence and len(current_text) >= _MIN_EARLY_RETURN_CHARS:
                 logger.info(
                     "LLM stream early sentence ready | "
-                    f"model={model} approx_tokens={approx_tokens}"
+                    f"model={model} approx_tokens={approx_tokens} chars={len(current_text)}"
                 )
                 return first_sentence
 
