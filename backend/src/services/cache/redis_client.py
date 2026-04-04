@@ -20,6 +20,15 @@ async def cache_set(key: str, value: Any, ttl_seconds: int) -> None:
         logger.error(f"Redis SET failed for key={key}: {exc}")
 
 
+async def cache_set_if_absent(key: str, value: Any, ttl_seconds: int) -> bool:
+    try:
+        result = redis.set(key, json.dumps(value), ex=ttl_seconds, nx=True)
+        return bool(result)
+    except Exception as exc:
+        logger.error(f"Redis SET NX failed for key={key}: {exc}")
+        return False
+
+
 async def cache_get(key: str) -> Any | None:
     try:
         raw = redis.get(key)
@@ -34,6 +43,13 @@ async def cache_get(key: str) -> Any | None:
     except Exception as exc:
         logger.error(f"Redis GET failed for key={key}: {exc}")
         return None
+
+
+async def cache_delete(key: str) -> None:
+    try:
+        redis.delete(key)
+    except Exception as exc:
+        logger.error(f"Redis DEL failed for key={key}: {exc}")
 
 
 async def redis_ping() -> bool:

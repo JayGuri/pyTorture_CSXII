@@ -31,6 +31,36 @@ class ProcessTurnResult:
         self.analysis = analysis
 
 
+def _coerce_optional_float(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _sanitize_extracted_data(extracted: Dict[str, Any]) -> Dict[str, Any]:
+    sanitized = dict(extracted)
+
+    for field in ("gpa", "ielts_score", "pte_score"):
+        if field in sanitized:
+            sanitized[field] = _coerce_optional_float(sanitized.get(field))
+
+    countries = sanitized.get("target_countries")
+    if countries is not None:
+        if isinstance(countries, list):
+            sanitized["target_countries"] = [str(country) for country in countries if country]
+        else:
+            sanitized["target_countries"] = [str(countries)]
+
+    budget_status = sanitized.get("budget_status")
+    if budget_status not in {None, "disclosed", "deferred", "not_asked"}:
+        sanitized["budget_status"] = "not_asked"
+
+    return sanitized
+
+
 async def process_turn(
     state: Dict[str, Any],
     transcript: str,
@@ -94,32 +124,48 @@ async def process_turn(
         # Step 9: Extract lead data & score (fire-and-forget background task)
         async def _post_process():
             try:
+                if not session_id:
+                    logger.warning(f"Skipping lead upsert due to missing session_id | call_sid={state.get('call_sid')}")
+                    return
+
                 extracted = extract_lead_data_from_text(transcript, state.get("extracted_data", {}))
+                extracted = _sanitize_extracted_data(extracted)
                 state["extracted_data"] = extracted
 
                 score_result = calculate_lead_score(extracted)
+                classification = score_result.classification
+                if classification not in {"Hot", "Warm", "Cold"}:
+                    classification = "Cold"
+
+                lead_payload = {
+                    "session_id": session_id,
+                    **extracted,
+                    "lead_score": score_result.score,
+                    "classification": classification,
+                    "intent_score": score_result.intent_score,
+                    "financial_score": score_result.financial_score,
+                    "timeline_score": score_result.timeline_score,
+                    "persona_type": persona,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
 
                 # Upsert lead in Supabase
-                supabase.table("leads").upsert(
-                    {
-                        "session_id": session_id,
-                        **extracted,
-                        "lead_score": score_result.score,
-                        "classification": score_result.classification,
-                        "intent_score": score_result.intent_score,
-                        "financial_score": score_result.financial_score,
-                        "timeline_score": score_result.timeline_score,
-                        "persona_type": persona,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    },
-                    on_conflict="session_id",
-                ).execute()
+                try:
+                    supabase.table("leads").upsert(
+                        lead_payload,
+                        on_conflict="session_id",
+                    ).execute()
+                except Exception as exc:
+                    logger.error(
+                        f"Lead upsert failed | session_id={session_id} call_sid={state.get('call_sid')} "
+                        f"keys={sorted(lead_payload.keys())} err={exc}"
+                    )
 
                 # Broadcast to dashboard
                 await broadcast_score_update(
                     session_id,
                     score_result.score,
-                    score_result.classification,
+                    classification,
                     score_result.intent_score,
                     score_result.financial_score,
                     score_result.timeline_score,

@@ -128,12 +128,19 @@ def _safe_response_snippet(response: httpx.Response, limit: int = 280) -> str:
     return one_line if len(one_line) <= limit else f"{one_line[:limit]}..."
 
 
-async def transcribe_audio(audio_bytes: bytes, language_code: str) -> str:
+async def transcribe_audio(
+    audio_bytes: bytes,
+    language_code: str,
+    timeout_sec: float | None = None,
+    max_contracts: int | None = None,
+) -> str:
     if not env.SARVAM_API_KEY:
         logger.error("Sarvam STT skipped because SARVAM_API_KEY is missing")
         return ""
 
     contracts = _build_contracts()
+    if max_contracts is not None and max_contracts > 0:
+        contracts = contracts[:max_contracts]
     if not contracts:
         logger.error("Sarvam STT skipped because no valid contract is configured")
         return ""
@@ -141,7 +148,9 @@ async def transcribe_audio(audio_bytes: bytes, language_code: str) -> str:
     last_reason = ""
     last_detail = ""
 
-    async with httpx.AsyncClient(timeout=env.HTTP_TIMEOUT_SEC) as client:
+    request_timeout = timeout_sec if timeout_sec and timeout_sec > 0 else env.HTTP_TIMEOUT_SEC
+
+    async with httpx.AsyncClient(timeout=request_timeout) as client:
         for contract in contracts:
             files = {
                 "file": ("call_audio.wav", audio_bytes, "audio/wav"),
@@ -219,10 +228,12 @@ async def transcribe_audio(audio_bytes: bytes, language_code: str) -> str:
     return ""
 
 
-async def download_twilio_recording(recording_url: str) -> bytes:
+async def download_twilio_recording(recording_url: str, timeout_sec: float | None = None) -> bytes:
     final_url = recording_url if recording_url.endswith(".wav") else f"{recording_url}.wav"
 
-    async with httpx.AsyncClient(timeout=env.HTTP_TIMEOUT_SEC) as client:
+    request_timeout = timeout_sec if timeout_sec and timeout_sec > 0 else env.HTTP_TIMEOUT_SEC
+
+    async with httpx.AsyncClient(timeout=request_timeout) as client:
         response = await client.get(
             final_url,
             auth=(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN),

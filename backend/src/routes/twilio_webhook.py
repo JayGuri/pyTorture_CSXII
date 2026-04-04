@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any, Dict, cast
 from urllib.parse import urlencode
 
@@ -10,6 +12,7 @@ from src.config.env import env
 from src.middleware.auth import validate_twilio_signature
 from src.db.supabase_client import supabase
 from src.services.stt.sarvam import transcribe_audio, download_twilio_recording
+from src.services.cache.redis_client import cache_delete, cache_get, cache_set, cache_set_if_absent
 from src.services.llm.featherless import generate_simple_reply
 from src.services.voice_agent.orchestrator import process_turn
 from src.services.voice_agent.intent_classifier import analyze_transcript
@@ -23,6 +26,7 @@ TWILIO_WEBHOOK_BASE = "/webhooks/twilio"
 
 # In-memory call state (keyed by CallSid)
 CALL_STATE: Dict[str, Dict[str, Any]] = {}
+PROCESSING_TASKS: Dict[str, asyncio.Task[None]] = {}
 
 LANGUAGE_BY_DIGIT: Dict[str, Language] = {
     "1": "en-IN",
@@ -62,6 +66,12 @@ FALLBACK_REPLY: Dict[Language, str] = {
     "mr-IN": "धन्यवाद, मी तुमचा प्रश्न नोंदवला आहे. काउन्सेलर लवकरच संपर्क करेल.",
 }
 
+PROCESSING_REPLY: Dict[Language, str] = {
+    "en-IN": "Thanks, I am checking that now. Please share your next question after the beep.",
+    "hi-IN": "Dhanyavaad, main abhi check kar rahi hoon. Beep ke baad agla sawaal batayiye.",
+    "mr-IN": "धन्यवाद, मी आत्ता तपासत आहे. बीपनंतर पुढचा प्रश्न विचारा.",
+}
+
 VOICE_BY_LANGUAGE: Dict[Language, str] = {
     "en-IN": "Polly.Raveena",
     "hi-IN": "Polly.Aditi",
@@ -69,6 +79,94 @@ VOICE_BY_LANGUAGE: Dict[Language, str] = {
 }
 
 VALID_LANGUAGES: tuple[Language, ...] = ("en-IN", "hi-IN", "mr-IN")
+
+
+def _pending_reply_key(call_sid: str) -> str:
+    return f"twilio:pending-reply:{call_sid}"
+
+
+def _recording_dedupe_key(recording_sid: str) -> str:
+    return f"twilio:recording:dedupe:{recording_sid}"
+
+
+async def _pop_pending_reply(call_sid: str) -> str:
+    key = _pending_reply_key(call_sid)
+    cached = await cache_get(key)
+    if cached is None:
+        return ""
+
+    queue: list[Any]
+    if isinstance(cached, list):
+        queue = list(cached)
+    else:
+        queue = [cached]
+
+    first = queue.pop(0)
+    if queue:
+        await cache_set(key, queue, ttl_seconds=env.ASYNC_REPLY_CACHE_TTL_SEC)
+    else:
+        await cache_delete(key)
+
+    if isinstance(first, dict):
+        return str(first.get("reply", "")).strip()
+    if isinstance(first, str):
+        return first.strip()
+    return ""
+
+
+async def _push_pending_reply(call_sid: str, reply: str) -> None:
+    key = _pending_reply_key(call_sid)
+    cached = await cache_get(key)
+
+    queue: list[Any] = []
+    if isinstance(cached, list):
+        queue = list(cached)
+    elif cached is not None:
+        queue = [cached]
+
+    queue.append({
+        "reply": reply,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    })
+    await cache_set(key, queue, ttl_seconds=env.ASYNC_REPLY_CACHE_TTL_SEC)
+
+
+def _schedule_turn_processing(state: Dict[str, Any], transcript: str, language: Language) -> None:
+    call_sid = str(state.get("call_sid", ""))
+    previous_task = PROCESSING_TASKS.get(call_sid)
+
+    async def _runner() -> None:
+        if previous_task and not previous_task.done():
+            try:
+                await previous_task
+            except Exception as exc:
+                logger.warning(f"Previous processing task failed | CallSid={call_sid} err={exc}")
+
+        reply = ""
+        try:
+            if state.get("session_id"):
+                result = await process_turn(state, transcript)
+                reply = result.reply
+            else:
+                analysis_obj = analyze_transcript(transcript, language)
+                reply = await generate_simple_reply(transcript, language, analysis_obj.dict())
+        except Exception as exc:
+            logger.error(f"Background turn processing failed | CallSid={call_sid} err={exc}")
+
+        if not reply:
+            reply = FALLBACK_REPLY[language]
+
+        await _push_pending_reply(call_sid, reply)
+
+    task = asyncio.create_task(_runner())
+    PROCESSING_TASKS[call_sid] = task
+
+    def _cleanup(completed_task: asyncio.Task[None]) -> None:
+        current = PROCESSING_TASKS.get(call_sid)
+        if current is completed_task:
+            PROCESSING_TASKS.pop(call_sid, None)
+
+    task.add_done_callback(_cleanup)
 
 
 def _build_url(path: str, query: Dict[str, str] | None = None) -> str:
@@ -157,6 +255,11 @@ async def voice(request: Request):
         "extracted_data": {"phone": caller},
     }
 
+    prior_task = PROCESSING_TASKS.pop(call_sid, None)
+    if prior_task and not prior_task.done():
+        prior_task.cancel()
+    await cache_delete(_pending_reply_key(call_sid))
+
     redirect_url = _build_url(_twilio_path("/voice"))
     body = _twiml([
         _gather(),
@@ -200,10 +303,12 @@ async def language(request: Request):
 @router.post("/process-recording")
 async def process_recording(request: Request, lang: str = Query(default="en-IN")):
     await validate_twilio_signature(request)
+    started = perf_counter()
 
     form = await request.form()
     call_sid = str(form.get("CallSid", ""))
     recording_url = str(form.get("RecordingUrl", ""))
+    recording_sid = str(form.get("RecordingSid", "")).strip()
     state = CALL_STATE.get(call_sid)
     state_language = _normalize_language(str(state.get("language", "en-IN")) if state else "en-IN")
     language: Language = _normalize_language(lang) if lang in VALID_LANGUAGES else state_language
@@ -220,25 +325,58 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
         "extracted_data": {},
     })
     state["language"] = language
+    CALL_STATE[call_sid] = state
+
+    if recording_sid:
+        first_seen = await cache_set_if_absent(
+            _recording_dedupe_key(recording_sid),
+            {"call_sid": call_sid},
+            ttl_seconds=env.TWILIO_RECORDING_DEDUPE_TTL_SEC,
+        )
+        if not first_seen:
+            logger.warning(f"Duplicate Twilio recording callback ignored | CallSid={call_sid} RecordingSid={recording_sid}")
+            replay = await _pop_pending_reply(call_sid)
+            reply_text = replay or PROCESSING_REPLY[language]
+            body = _twiml([
+                _say(reply_text, language),
+                _say(FOLLOW_UP[language], language),
+                _record(language),
+            ])
+            return Response(content=body, media_type="text/xml")
 
     # No recording? Ask again
     if not recording_url:
+        replay = await _pop_pending_reply(call_sid)
+        prompt = replay or NO_AUDIO[language]
         body = _twiml([
-            _say(NO_AUDIO[language], language),
+            _say(prompt, language),
             _say(FOLLOW_UP[language], language),
             _record(language),
         ])
         return Response(content=body, media_type="text/xml")
 
-    ai_reply = ""
-    analysis: Dict[str, Any] = {}
+    download_ms = 0
+    stt_ms = 0
+    enqueue_ms = 0
 
     try:
         # Download recording from Twilio
-        audio_bytes = await download_twilio_recording(recording_url)
+        download_started = perf_counter()
+        audio_bytes = await download_twilio_recording(
+            recording_url,
+            timeout_sec=env.WEBHOOK_RECORDING_DOWNLOAD_TIMEOUT_SEC,
+        )
+        download_ms = int((perf_counter() - download_started) * 1000)
 
         # Transcribe with Sarvam AI
-        transcript = await transcribe_audio(audio_bytes, language)
+        stt_started = perf_counter()
+        transcript = await transcribe_audio(
+            audio_bytes,
+            language,
+            timeout_sec=env.WEBHOOK_STT_TIMEOUT_SEC,
+            max_contracts=env.WEBHOOK_STT_MAX_CONTRACTS,
+        )
+        stt_ms = int((perf_counter() - stt_started) * 1000)
 
         if not transcript:
             state["stt_failures"] = int(state.get("stt_failures", 0)) + 1
@@ -250,6 +388,10 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
                 )
                 if state.get("session_id"):
                     await broadcast_session_end(state["session_id"], state.get("extracted_data", {}))
+                pending_task = PROCESSING_TASKS.pop(call_sid, None)
+                if pending_task and not pending_task.done():
+                    pending_task.cancel()
+                await cache_delete(_pending_reply_key(call_sid))
                 CALL_STATE.pop(call_sid, None)
 
                 body = _twiml([
@@ -270,41 +412,52 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
 
         logger.info(f"Transcript received | CallSid={call_sid} lang={language} text={transcript[:100]}")
 
-        # Run through full orchestrator pipeline
-        if state.get("session_id"):
-            result = await process_turn(state, transcript)
-            ai_reply = result.reply
-            analysis = result.analysis
-        else:
-            # Fallback: direct LLM call without orchestrator
-            analysis_obj = analyze_transcript(transcript, language)
-            analysis = analysis_obj.dict()
-            ai_reply = await generate_simple_reply(transcript, language, analysis)
+        enqueue_started = perf_counter()
+        _schedule_turn_processing(state, transcript, language)
+        enqueue_ms = int((perf_counter() - enqueue_started) * 1000)
     except Exception as exc:
         logger.error(f"Processing error | CallSid={call_sid}: {exc}")
-
-    if not ai_reply:
-        ai_reply = FALLBACK_REPLY[language]
+        replay = await _pop_pending_reply(call_sid)
+        reply_text = replay or FALLBACK_REPLY[language]
+        body = _twiml([
+            _say(reply_text, language),
+            _say(FOLLOW_UP[language], language),
+            _record(language),
+        ])
+        return Response(content=body, media_type="text/xml")
 
     state["turns"] = state.get("turns", 0) + 1
     CALL_STATE[call_sid] = state
+    reply_text = await _pop_pending_reply(call_sid)
+    if not reply_text:
+        reply_text = PROCESSING_REPLY[language]
+
+    total_ms = int((perf_counter() - started) * 1000)
+    logger.info(
+        f"process_recording timings | CallSid={call_sid} "
+        f"download_ms={download_ms} stt_ms={stt_ms} enqueue_ms={enqueue_ms} total_ms={total_ms}"
+    )
 
     # Check if max turns reached
     if state["turns"] >= env.MAX_TURNS_PER_CALL:
         # End call
         if state.get("session_id"):
             await broadcast_session_end(state["session_id"], state.get("extracted_data", {}))
+        pending_task = PROCESSING_TASKS.pop(call_sid, None)
+        if pending_task and not pending_task.done():
+            pending_task.cancel()
+        await cache_delete(_pending_reply_key(call_sid))
         CALL_STATE.pop(call_sid, None)
 
         body = _twiml([
-            _say(ai_reply, language),
+            _say(reply_text, language),
             _say(CLOSE[language], language),
             "<Hangup/>",
         ])
         return Response(content=body, media_type="text/xml")
     else:
         body = _twiml([
-            _say(ai_reply, language),
+            _say(reply_text, language),
             _say(FOLLOW_UP[language], language),
             _record(language),
         ])
@@ -335,6 +488,10 @@ async def status(request: Request):
         state = CALL_STATE.get(call_sid)
         if state and state.get("session_id"):
             await broadcast_session_end(state["session_id"], state.get("extracted_data", {}))
+        pending_task = PROCESSING_TASKS.pop(call_sid, None)
+        if pending_task and not pending_task.done():
+            pending_task.cancel()
+        await cache_delete(_pending_reply_key(call_sid))
         CALL_STATE.pop(call_sid, None)
 
     return Response(status_code=200)

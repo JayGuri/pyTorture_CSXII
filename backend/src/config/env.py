@@ -55,6 +55,11 @@ class Settings(BaseSettings):
 
     # ─── Voice ───
     HTTP_TIMEOUT_SEC: int = Field(default=25)
+    WEBHOOK_RECORDING_DOWNLOAD_TIMEOUT_SEC: int = Field(default=5)
+    WEBHOOK_STT_TIMEOUT_SEC: int = Field(default=4)
+    WEBHOOK_STT_MAX_CONTRACTS: int = Field(default=2)
+    ASYNC_REPLY_CACHE_TTL_SEC: int = Field(default=120)
+    TWILIO_RECORDING_DEDUPE_TTL_SEC: int = Field(default=600)
     MAX_TURNS_PER_CALL: int = Field(default=4)
     STT_REPROMPT_LIMIT: int = Field(default=2)
 

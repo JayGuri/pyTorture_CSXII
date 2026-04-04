@@ -126,6 +126,16 @@ class _QueryBuilder:
             if r.status_code == 404:
                 return _QueryResult(data=[] if not self._single else None, count=0)
 
+            if r.status_code == 400:
+                try:
+                    detail = r.json()
+                except ValueError:
+                    detail = r.text
+                raise ValueError(
+                    "PostgREST 400 Bad Request | "
+                    f"method={self._method} url={self._url} params={self._params} detail={detail}"
+                )
+
             r.raise_for_status()
 
             data = r.json() if r.text else []
