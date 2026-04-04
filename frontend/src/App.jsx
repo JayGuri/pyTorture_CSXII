@@ -4,11 +4,11 @@ import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 // Pages
-import HomePage from "./pages/HomePage";
-import LoginPage from "./pages/LoginPage";
-import SignupPage from "./pages/SignupPage";
-import ForYouPage from "./pages/ForYouPage";
-import ScholarshipsPage from "./pages/ScholarshipsPage";
+const HomePage = lazy(() => import("./pages/HomePage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const SignupPage = lazy(() => import("./pages/SignupPage"));
+const ForYouPage = lazy(() => import("./pages/ForYouPage"));
+const ScholarshipsPage = lazy(() => import("./pages/ScholarshipsPage"));
 
 const SectionLoader = () => (
   <div className="flex h-32 w-full items-center justify-center bg-fateh-paper/50">
