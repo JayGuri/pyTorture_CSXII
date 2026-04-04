@@ -265,36 +265,10 @@ async def voice(request: Request):
         call_sid = str(form.get("CallSid", ""))
         phone = normalize_phone(str(form.get("From", "")))
 
-<<<<<<< HEAD
         caller_doc = {}
         is_returning_caller = False
         try:
             caller_doc, is_returning_caller = await _upsert_caller_for_inbound_call(phone, call_sid)
-=======
-    # Create session in Supabase
-    result = (
-        supabase.table("call_sessions")
-        .upsert(
-            {"twilio_call_sid": call_sid, "caller_phone": caller, "status": "ringing"},
-            on_conflict="twilio_call_sid",
-        )
-        .execute()
-    )
-    session_id = result.data[0]["id"] if result.data else None
-
-    # Create initial lead record with phone number (early onboarding)
-    # Classification starts as "Cold" and gets updated as call progresses
-    if session_id:
-        try:
-            supabase.table("leads").upsert({
-                "session_id": session_id,
-                "phone": caller,
-                "classification": "Cold",
-                "lead_score": 0,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }, on_conflict="session_id").execute()
-            logger.info(f"Lead onboarded | session_id={session_id} phone={caller}")
->>>>>>> 3ae9168084555742685a00bdc90986424c9c3620
         except Exception as exc:
             logger.error(f"Failed to upsert caller on inbound call | phone={phone} call_sid={call_sid} err={repr(exc)}")
             caller_doc = build_new_caller_document(phone, call_sid, utc_now_iso())

@@ -40,14 +40,7 @@ app.add_middleware(
 app.include_router(twilio_router, prefix="/webhooks/twilio")
 app.include_router(health_router)
 app.include_router(dashboard_router)
-app.include_router(leads_router)
-app.include_router(sessions_router)
-app.include_router(health_router)
-<<<<<<<<< Temporary merge branch 1
-app.include_router(voice_agent_router)
-=========
-app.include_router(for_you_router)
->>>>>>>>> Temporary merge branch 2
+app.include_router(tts_router)
 
 
 @app.get("/")
