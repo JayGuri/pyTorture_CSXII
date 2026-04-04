@@ -30,6 +30,10 @@ const Register = () => {
       className="relative overflow-hidden px-6 py-20 bg-cover bg-center md:px-10 lg:grid lg:grid-cols-2 lg:items-center lg:gap-20 lg:py-24"
       style={{ backgroundImage: `url(${bg_image3})` }}
     >
+      <div
+        className="pointer-events-none absolute inset-0 bg-linear-to-b from-fateh-ink/75 via-fateh-ink/55 to-fateh-ink/70"
+        aria-hidden
+      />
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -41,9 +45,9 @@ const Register = () => {
         </p>
         <h2 className="mt-3 font-fateh-serif text-[clamp(2rem,3.5vw,3.2rem)] font-semibold leading-tight text-fateh-paper normal-case">
           Book your session{" "}
-          <span className="text-fateh-ink">with a Fateh expert</span> today.
+          <span className="text-fateh-gold-light">with a Fateh expert</span> today.
         </h2>
-        <p className="mt-6 text-[1.05rem] leading-[1.8] text-fateh-paper/90 normal-case">
+        <p className="mt-6 text-[1.05rem] leading-[1.8] text-fateh-paper/95 normal-case">
           No fees. No obligation. Just honest, expert advice from a team that
           has conquered 40,000+ dreams.
         </p>
@@ -51,7 +55,7 @@ const Register = () => {
           {FEATURES.map((f) => (
             <li
               key={f}
-              className="flex items-center gap-3 text-[0.9rem] text-fateh-paper/80 normal-case"
+              className="flex items-center gap-3 text-[0.9rem] text-fateh-paper/90 normal-case"
             >
               <span className="text-fateh-gold" aria-hidden>
                 ✦
@@ -66,7 +70,7 @@ const Register = () => {
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        className="rounded bg-fateh-ink p-10 text-fateh-paper"
+        className="rounded-2xl border border-white/10 bg-fateh-ink/95 p-8 text-fateh-paper shadow-[0_24px_60px_-12px_rgba(0,0,0,0.45)] ring-1 ring-white/5 backdrop-blur-sm md:p-10"
       >
         <AnimatePresence mode="wait">
           {submitted ?
@@ -140,7 +144,7 @@ const Register = () => {
                     type={field.type}
                     required
                     placeholder={field.placeholder}
-                    className="w-full rounded-sm border border-white/15 bg-white/[0.07] px-4 py-3 text-[0.95rem] text-fateh-paper outline-none transition focus:border-fateh-gold"
+                    className="w-full rounded-lg border border-white/15 bg-white/[0.08] px-4 py-3 text-[0.95rem] text-fateh-paper outline-none transition placeholder:text-white/35 focus:border-fateh-gold focus:ring-1 focus:ring-fateh-gold/30"
                   />
                 </div>
               ))}
@@ -155,7 +159,7 @@ const Register = () => {
                 <select
                   id="centre"
                   name="centre"
-                  className="w-full cursor-pointer appearance-none rounded-sm border border-white/15 bg-white/[0.07] px-4 py-3 text-[0.95rem] text-fateh-paper outline-none transition focus:border-fateh-gold"
+                  className="w-full cursor-pointer appearance-none rounded-lg border border-white/15 bg-white/[0.08] px-4 py-3 text-[0.95rem] text-fateh-paper outline-none transition focus:border-fateh-gold focus:ring-1 focus:ring-fateh-gold/30"
                   defaultValue=""
                 >
                   <option value="" disabled>
@@ -171,7 +175,7 @@ const Register = () => {
 
               <button
                 type="submit"
-                className="mt-8 w-full rounded-sm bg-fateh-gold py-4 text-[0.875rem] font-medium uppercase tracking-[0.08em] text-fateh-ink transition hover:opacity-90"
+                className="mt-8 w-full rounded-lg bg-fateh-gold py-4 text-[0.875rem] font-medium uppercase tracking-[0.08em] text-fateh-ink shadow-md shadow-fateh-gold/20 transition hover:bg-fateh-gold-light"
               >
                 Book Free Counselling →
               </button>

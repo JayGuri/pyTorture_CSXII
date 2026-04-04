@@ -42,12 +42,12 @@ const Mission = () => {
             className="lg:col-span-8 lg:pl-4 xl:pl-8"
           >
             <h2 className="max-w-[22ch] font-fateh-serif text-[clamp(1.85rem,3.2vw,2.85rem)] font-semibold leading-[1.12] text-fateh-ink normal-case">
-              We don&apos;t just get you admitted — we help you make the{" "}
+              We don&apos;t just get you admitted: we help you make the{" "}
               <em className="text-fateh-gold italic">right</em> choice.
             </h2>
             <p className="mt-8 max-w-2xl text-[1.06rem] leading-[1.9] text-fateh-muted">
               Provide intellectual opinion on anything related to studying in the UK and Ireland with
-              utmost empathy — enabling students, parents and all stakeholders to arrive at a higher
+              utmost empathy, so students, parents and all stakeholders can reach a higher
               level of clarity, validate their hypotheses, and make informed decisions. Choosing to
               study abroad is often a once-in-a-lifetime decision. You deserve someone who truly cares.
             </p>
@@ -55,7 +55,7 @@ const Mission = () => {
               {PILLARS.map((p) => (
                 <li
                   key={p}
-                  className="rounded-full border border-fateh-border bg-white/90 px-4 py-2 text-[0.72rem] font-medium uppercase tracking-[0.12em] text-fateh-ink/80 shadow-sm"
+                  className="rounded-full border border-fateh-border/80 bg-white/95 px-4 py-2.5 text-[0.72rem] font-medium uppercase tracking-[0.12em] text-fateh-ink/80 shadow-md shadow-fateh-ink/5"
                 >
                   {p}
                 </li>
