@@ -1,27 +1,68 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { motion } from "framer-motion";
 
-const SPLINE_URL = "https://prod.spline.design/BKyywyDXMNC-CP9y/scene.splinecode";
+const HeroSpline = lazy(() => Promise.resolve({ default: SplineViewer }));
 
-function HeroSpline() {
+function SplineViewer() {
+  const [isReady, setIsReady] = React.useState(false);
+  const viewerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const el = viewerRef.current;
+    if (!el) return;
+
+    const handleLoad = () => {
+      setIsReady(true);
+      window.dispatchEvent(new Event("resize"));
+    };
+
+    // Spline viewer emits a 'load' event on the custom element itself
+    el.addEventListener("load", handleLoad);
+    
+    // Fail-safe: Reveal anyway after 3 seconds if event fails to fire
+    const failSafe = setTimeout(handleLoad, 3000);
+
+    return () => {
+      el.removeEventListener("load", handleLoad);
+      clearTimeout(failSafe);
+    };
+  }, []);
+
   return (
-    <div className="relative h-full min-h-[50vh] w-full overflow-hidden lg:min-h-0">
-      <spline-viewer
-        url={SPLINE_URL}
-        logo="false"
-        style={{ width: "100%", height: "100%", minHeight: "100%", display: "block" }}
-      />
-      <div
-        className="pointer-events-none absolute inset-y-0 left-0 z-2 w-[min(220px,40vw)] bg-linear-to-r from-fateh-ink to-transparent"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute bottom-0 right-0 z-20 h-[4.25rem] w-52 max-w-[42vw] rounded-tl-sm bg-fateh-ink shadow-[-8px_0_32px_12px_#0b0e1a]"
-        aria-hidden
-      />
+    <div className="relative h-full w-full overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, y: 150 }}
+        animate={isReady ? { opacity: 1, y: 0 } : { opacity: 0, y: 150 }}
+        transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+        className="relative h-full min-h-[50vh] w-full lg:min-h-0"
+      >
+        <spline-viewer
+          ref={viewerRef}
+          url={SPLINE_URL}
+          logo="false"
+          loading-anim="false"
+          style={{
+            width: "100%",
+            height: "100%",
+            minHeight: "100%",
+            display: "block",
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-y-0 left-0 z-2 w-[min(220px,40vw)] bg-linear-to-r from-fateh-ink to-transparent"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute bottom-0 right-0 z-20 h-[4.25rem] w-52 max-w-[42vw] rounded-tl-sm bg-fateh-ink shadow-[-8px_0_32px_12px_#0b0e1a]"
+          aria-hidden
+        />
+      </motion.div>
     </div>
   );
 }
+
+const SPLINE_URL = "https://prod.spline.design/BKyywyDXMNC-CP9y/scene.splinecode";
+
 
 const Hero = () => {
   const scrollTo = (id) => {
@@ -123,7 +164,15 @@ const Hero = () => {
       </div>
 
       <div className="relative min-h-[50vh] lg:min-h-0">
-        <HeroSpline />
+        <Suspense
+          fallback={
+            <div className="flex h-full w-full items-center justify-center bg-fateh-ink">
+              <div className="h-12 w-12 animate-pulse rounded-full border-2 border-fateh-gold/20 border-t-fateh-gold" />
+            </div>
+          }
+        >
+          <HeroSpline />
+        </Suspense>
       </div>
     </section>
   );

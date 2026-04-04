@@ -1,0 +1,2301 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "last_updated": "April 2026",
+    "description": "University data for UK, Ireland, and Dubai \u2014 structured for easy filtering and retrieval by the Fateh Education AI counselling bot.",
+    "primary_audience": "Indian students",
+    "filter_keys": [
+      "country",
+      "region",
+      "city",
+      "type",
+      "qs_rank_2026",
+      "tuition_band",
+      "ielts_min",
+      "acceptance_tier",
+      "subject_strengths"
+    ],
+    "currency_note": "UK fees in GBP. Ireland fees in EUR. Dubai fees in AED with GBP equivalent. Use live_metrics for INR conversion.",
+    "data_sources": [
+      "individual university websites",
+      "QS World University Rankings 2026",
+      "hesa.ac.uk",
+      "ucas.com",
+      "educationireland.net",
+      "khda.gov.ae"
+    ],
+    "cost_resolution": "Living costs now resolved from cost_of_living.json based on city. Use cost_manager.py to get costs."
+  },
+  "universities": [
+    {
+      "id": "ucl",
+      "full_name": "University College London",
+      "short_name": "UCL",
+      "country": "UK",
+      "city": "London",
+      "region": "london",
+      "type": "Russell Group",
+      "qs_rank_2026": 9,
+      "website": "ucl.ac.uk",
+      "acceptance_tier": "highly_selective",
+      "acceptance_rate_approx": "20-30% for Masters",
+      "tuition_band": "premium",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Data Science",
+        "Finance",
+        "Machine Learning",
+        "Management",
+        "Law",
+        "Architecture"
+      ],
+      "notable": "One of highest-ranked universities accepting 3-year Indian degrees. Strong Indian alumni network.",
+      "courses": [
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_gbp": 38700,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 70,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science",
+          "level": "Masters",
+          "fee_gbp": 38700,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 70,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Financial Risk Management",
+          "level": "Masters",
+          "fee_gbp": 33600,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Management",
+          "level": "Masters",
+          "fee_gbp": 38200,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Machine Learning",
+          "level": "Masters",
+          "fee_gbp": 38700,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 70,
+          "intake": "September"
+        },
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_gbp": 54000,
+          "duration": "15 months",
+          "ielts_min": 7.5,
+          "min_percentage": 65,
+          "gmat_min": 600,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "UCL Global Masters Scholarship",
+          "amount_gbp": 5000,
+          "type": "partial",
+          "eligibility": "Academic merit, first Masters application",
+          "deadline": "January annually"
+        },
+        {
+          "name": "Denys Holland Scholarship",
+          "amount_gbp": null,
+          "amount_note": "Full tuition",
+          "type": "full",
+          "eligibility": "Financial hardship",
+          "deadline": "March"
+        }
+      ]
+    },
+    {
+      "id": "imperial_college_london",
+      "full_name": "Imperial College London",
+      "short_name": "Imperial",
+      "country": "UK",
+      "city": "London",
+      "region": "london",
+      "type": "Russell Group",
+      "qs_rank_2026": 2,
+      "website": "imperial.ac.uk",
+      "acceptance_tier": "highly_selective",
+      "acceptance_rate_approx": "15-25% for Masters",
+      "tuition_band": "premium",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 3000,
+      "intakes": [
+        "October"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Engineering",
+        "Computing",
+        "AI",
+        "Finance",
+        "Data Science",
+        "Physics",
+        "Management"
+      ],
+      "notable": "#2 QS World. STEM powerhouse. Very competitive. Apply by January for competitive programs.",
+      "courses": [
+        {
+          "name": "MSc Computing",
+          "level": "Masters",
+          "fee_gbp": 40250,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 70,
+          "intake": "October"
+        },
+        {
+          "name": "MSc Artificial Intelligence",
+          "level": "Masters",
+          "fee_gbp": 40250,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 70,
+          "intake": "October"
+        },
+        {
+          "name": "MSc Data Science & Machine Learning",
+          "level": "Masters",
+          "fee_gbp": 40250,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 70,
+          "intake": "October"
+        },
+        {
+          "name": "MSc Management",
+          "level": "Masters",
+          "fee_gbp": 44000,
+          "duration": "1 year",
+          "ielts_min": 7.5,
+          "min_percentage": 65,
+          "intake": "October"
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_gbp": 44000,
+          "duration": "1 year",
+          "ielts_min": 7.5,
+          "min_percentage": 65,
+          "gmat_min": 650,
+          "intake": "October"
+        },
+        {
+          "name": "MEng Mechanical Engineering",
+          "level": "Undergraduate",
+          "fee_gbp": 40250,
+          "duration": "4 years",
+          "ielts_min": 7.0,
+          "intake": "October"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "President's PhD Scholarship",
+          "amount_note": "Full tuition + stipend",
+          "type": "full",
+          "eligibility": "PhD only, exceptional candidates"
+        },
+        {
+          "name": "Imperial College Trust Scholarship",
+          "amount_gbp": 8000,
+          "type": "partial",
+          "eligibility": "Financial need + merit",
+          "deadline": "April"
+        }
+      ]
+    },
+    {
+      "id": "lse",
+      "full_name": "London School of Economics and Political Science",
+      "short_name": "LSE",
+      "country": "UK",
+      "city": "London",
+      "region": "london",
+      "type": "Russell Group",
+      "qs_rank_2026": 46,
+      "website": "lse.ac.uk",
+      "acceptance_tier": "highly_selective",
+      "acceptance_rate_approx": "20-30% for Masters",
+      "tuition_band": "premium",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Finance",
+        "Economics",
+        "Data Science",
+        "Law",
+        "Management",
+        "Social Sciences",
+        "Political Science"
+      ],
+      "notable": "World-leading for Economics, Finance, and Social Sciences. Central London. Very competitive.",
+      "courses": [
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_gbp": 38616,
+          "duration": "1 year",
+          "ielts_min": 7.5,
+          "min_percentage": 70,
+          "gmat_min": 700,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Economics",
+          "level": "Masters",
+          "fee_gbp": 34800,
+          "duration": "1 year",
+          "ielts_min": 7.5,
+          "min_percentage": 70,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science",
+          "level": "Masters",
+          "fee_gbp": 34800,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 70,
+          "intake": "September"
+        },
+        {
+          "name": "LLM",
+          "level": "Masters",
+          "fee_gbp": 26832,
+          "duration": "1 year",
+          "ielts_min": 7.5,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Management",
+          "level": "Masters",
+          "fee_gbp": 34416,
+          "duration": "1 year",
+          "ielts_min": 7.5,
+          "min_percentage": 65,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "LSE Graduate Support Scheme",
+          "amount_gbp": 7000,
+          "amount_note": "Up to \u00a37,000",
+          "type": "partial",
+          "eligibility": "Financial need",
+          "deadline": "April"
+        },
+        {
+          "name": "LSE Chevening Link Award",
+          "amount_note": "Partial \u2014 linked to Chevening",
+          "type": "partial",
+          "eligibility": "Chevening eligible countries"
+        }
+      ]
+    },
+    {
+      "id": "kings_college_london",
+      "full_name": "King's College London",
+      "short_name": "KCL",
+      "country": "UK",
+      "city": "London",
+      "region": "london",
+      "type": "Russell Group",
+      "qs_rank_2026": 40,
+      "website": "kcl.ac.uk",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "25-35% for Masters",
+      "tuition_band": "high",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Law",
+        "Medicine",
+        "Business",
+        "Computer Science",
+        "Neuroscience",
+        "International Relations"
+      ],
+      "notable": "Top 5 in UK for Law. Located in heart of London. Strong for health sciences and humanities.",
+      "courses": [
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_gbp": 34260,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science",
+          "level": "Masters",
+          "fee_gbp": 34260,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "LLM International Law",
+          "level": "Masters",
+          "fee_gbp": 27000,
+          "duration": "1 year",
+          "ielts_min": 7.5,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MSc International Business",
+          "level": "Masters",
+          "fee_gbp": 32500,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 60,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "King's International Scholarship",
+          "amount_gbp": 5000,
+          "type": "partial",
+          "eligibility": "Academic merit, international students",
+          "deadline": "May"
+        }
+      ]
+    },
+    {
+      "id": "university_of_edinburgh",
+      "full_name": "University of Edinburgh",
+      "short_name": "Edinburgh",
+      "country": "UK",
+      "city": "Edinburgh",
+      "region": "scotland",
+      "type": "Russell Group",
+      "qs_rank_2026": 27,
+      "website": "ed.ac.uk",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "30-40% for Masters",
+      "tuition_band": "high",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 3000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Data Science",
+        "Business",
+        "Finance",
+        "Engineering",
+        "Informatics",
+        "AI"
+      ],
+      "notable": "Top-10 UK university. Beautiful historic city. Strong for AI and Informatics. 3-year Indian degree accepted.",
+      "courses": [
+        {
+          "name": "MSc Artificial Intelligence",
+          "level": "Masters",
+          "fee_gbp": 38500,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 70,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science",
+          "level": "Masters",
+          "fee_gbp": 37800,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_gbp": 37800,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_gbp": 35600,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Business Administration",
+          "level": "Masters",
+          "fee_gbp": 32500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Edinburgh Global Research Scholarship",
+          "amount_gbp": 5000,
+          "type": "partial",
+          "eligibility": "Academic merit, non-EU Masters",
+          "deadline": "April"
+        },
+        {
+          "name": "Edinburgh India Scholarship",
+          "amount_gbp": 5000,
+          "type": "partial",
+          "eligibility": "Indian citizen, on-campus PG Masters \u2014 automatically considered",
+          "deadline": "Automatic with application"
+        },
+        {
+          "name": "Women in STEM South Asia Scholarship",
+          "amount_note": "Full funding (tuition + living)",
+          "type": "full",
+          "eligibility": "Female, South Asian (India/Pakistan/Sri Lanka/Bangladesh/Nepal), STEM Masters at Edinburgh"
+        }
+      ]
+    },
+    {
+      "id": "university_of_manchester",
+      "full_name": "University of Manchester",
+      "short_name": "Manchester",
+      "country": "UK",
+      "city": "Manchester",
+      "region": "north_england",
+      "type": "Russell Group",
+      "qs_rank_2026": 34,
+      "website": "manchester.ac.uk",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "35-45% for Masters",
+      "tuition_band": "high",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Data Science",
+        "Engineering",
+        "Business",
+        "Biotechnology",
+        "MBA",
+        "Finance"
+      ],
+      "notable": "Large Indian community. Very affordable outside London. Alliance Manchester Business School is world-renowned.",
+      "courses": [
+        {
+          "name": "MSc Advanced Computer Science",
+          "level": "Masters",
+          "fee_gbp": 31500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science",
+          "level": "Masters",
+          "fee_gbp": 31500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Artificial Intelligence",
+          "level": "Masters",
+          "fee_gbp": 31500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_gbp": 44000,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 60,
+          "gmat_min": 600,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_gbp": 28000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Global Futures Scholarship (South Asia)",
+          "amount_gbp": 10000,
+          "type": "partial",
+          "eligibility": "Indian/Bangladeshi/Pakistani/Sri Lankan students, merit-based, UG and Masters",
+          "deadline": "May"
+        },
+        {
+          "name": "Manchester Merit Scholarship",
+          "amount_gbp": 3000,
+          "type": "partial",
+          "eligibility": "Masters applicants, academic merit",
+          "deadline": "June"
+        }
+      ]
+    },
+    {
+      "id": "university_of_warwick",
+      "full_name": "University of Warwick",
+      "short_name": "Warwick",
+      "country": "UK",
+      "city": "Coventry",
+      "region": "midlands",
+      "type": "Russell Group",
+      "qs_rank_2026": 69,
+      "website": "warwick.ac.uk",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "35-45% for Masters",
+      "tuition_band": "mid_high",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Finance",
+        "Business",
+        "Computer Science",
+        "Engineering",
+        "Data Analytics",
+        "Economics"
+      ],
+      "notable": "WBS (Warwick Business School) is triple-accredited. Strong for Finance and Business. More affordable than London.",
+      "courses": [
+        {
+          "name": "MSc Data Analytics",
+          "level": "Masters",
+          "fee_gbp": 26950,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_gbp": 28500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 65,
+          "intake": "September"
+        },
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_gbp": 46900,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 60,
+          "gmat_min": 600,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_gbp": 28900,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Engineering Business Management",
+          "level": "Masters",
+          "fee_gbp": 26950,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Chancellor's International Scholarship",
+          "amount_note": "50% tuition fee",
+          "type": "partial",
+          "eligibility": "PhD, exceptional international applicants",
+          "deadline": "January"
+        },
+        {
+          "name": "WMS International Scholarship",
+          "amount_gbp": 3000,
+          "type": "partial",
+          "eligibility": "Masters students, merit",
+          "deadline": "June"
+        }
+      ]
+    },
+    {
+      "id": "university_of_bristol",
+      "full_name": "University of Bristol",
+      "short_name": "Bristol",
+      "country": "UK",
+      "city": "Bristol",
+      "region": "south_england_southwest",
+      "type": "Russell Group",
+      "qs_rank_2026": 54,
+      "website": "bristol.ac.uk",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "35-45% for Masters",
+      "tuition_band": "mid_high",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Robotics",
+        "Data Science",
+        "Engineering",
+        "Physics",
+        "Medicine"
+      ],
+      "notable": "Beautiful city. Strong Engineering and Sciences. Good value vs London. GREAT Scholarship participating.",
+      "courses": [
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_gbp": 27900,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Robotics",
+          "level": "Masters",
+          "fee_gbp": 27900,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science",
+          "level": "Masters",
+          "fee_gbp": 27900,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Engineering Mathematics",
+          "level": "Masters",
+          "fee_gbp": 27900,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Think Big Scholarship",
+          "amount_gbp": 20000,
+          "amount_note": "Up to \u00a320,000",
+          "type": "partial",
+          "eligibility": "Academic excellence, UG and PG",
+          "deadline": "February / June"
+        }
+      ]
+    },
+    {
+      "id": "university_of_birmingham",
+      "full_name": "University of Birmingham",
+      "short_name": "Birmingham",
+      "country": "UK",
+      "city": "Birmingham",
+      "region": "midlands",
+      "type": "Russell Group",
+      "qs_rank_2026": 84,
+      "website": "birmingham.ac.uk",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "40-50% for Masters",
+      "tuition_band": "mid",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Data Science",
+        "Business",
+        "Finance",
+        "Engineering",
+        "Law"
+      ],
+      "notable": "Second largest city in UK. Large Indian community. Good employment outcomes. Affordable living.",
+      "courses": [
+        {
+          "name": "MSc Advanced Computer Science",
+          "level": "Masters",
+          "fee_gbp": 25380,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science",
+          "level": "Masters",
+          "fee_gbp": 25380,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_gbp": 37500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "gmat_min": 550,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Accounting and Finance",
+          "level": "Masters",
+          "fee_gbp": 24500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Global Citizenship Scholarship",
+          "amount_gbp": 5000,
+          "type": "partial",
+          "eligibility": "First-class equivalent grades",
+          "deadline": "May"
+        }
+      ]
+    },
+    {
+      "id": "university_of_leeds",
+      "full_name": "University of Leeds",
+      "short_name": "Leeds",
+      "country": "UK",
+      "city": "Leeds",
+      "region": "north_england",
+      "type": "Russell Group",
+      "qs_rank_2026": 86,
+      "website": "leeds.ac.uk",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "40-50% for Masters",
+      "tuition_band": "mid",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 1500,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Data Science",
+        "Computer Science",
+        "Finance",
+        "Business",
+        "Engineering",
+        "Cybersecurity"
+      ],
+      "notable": "Vibrant student city. Good Indian community. Strong for Data Science and Business. Affordable living.",
+      "courses": [
+        {
+          "name": "MSc Data Science Statistics",
+          "level": "Masters",
+          "fee_gbp": 26500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Advanced Computer Science",
+          "level": "Masters",
+          "fee_gbp": 26500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_gbp": 31500,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 55,
+          "gmat_min": 550,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_gbp": 24500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Cybersecurity",
+          "level": "Masters",
+          "fee_gbp": 24500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Leeds International Study Grant",
+          "amount_gbp": 2000,
+          "type": "partial",
+          "eligibility": "Academic merit",
+          "deadline": "June"
+        }
+      ]
+    },
+    {
+      "id": "university_of_sheffield",
+      "full_name": "University of Sheffield",
+      "short_name": "Sheffield",
+      "country": "UK",
+      "city": "Sheffield",
+      "region": "north_england",
+      "type": "Russell Group",
+      "qs_rank_2026": 107,
+      "website": "sheffield.ac.uk",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "50-60% for Masters",
+      "tuition_band": "mid",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Engineering",
+        "Computer Science",
+        "Business",
+        "MBA",
+        "Architecture",
+        "Medicine"
+      ],
+      "notable": "Ranked #1 UK university for student experience. Very affordable city. Strong engineering programs.",
+      "courses": [
+        {
+          "name": "MSc Advanced Computer Science",
+          "level": "Masters",
+          "fee_gbp": 25160,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Analytics",
+          "level": "Masters",
+          "fee_gbp": 22700,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_gbp": 30000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Engineering Management",
+          "level": "Masters",
+          "fee_gbp": 22700,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Sheffield Global Scholarship",
+          "amount_gbp": 3000,
+          "type": "partial",
+          "eligibility": "International Masters students, merit",
+          "deadline": "June"
+        }
+      ]
+    },
+    {
+      "id": "university_of_nottingham",
+      "full_name": "University of Nottingham",
+      "short_name": "Nottingham",
+      "country": "UK",
+      "city": "Nottingham",
+      "region": "midlands",
+      "type": "Russell Group",
+      "qs_rank_2026": 103,
+      "website": "nottingham.ac.uk",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "50-60% for Masters",
+      "tuition_band": "mid",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Finance",
+        "Business",
+        "Pharmacy",
+        "Engineering",
+        "Agriculture"
+      ],
+      "notable": "Beautiful campus. Good for Finance and Business. Affordable city. January intake available for some courses.",
+      "courses": [
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_gbp": 25500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_gbp": 27000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science",
+          "level": "Masters",
+          "fee_gbp": 25500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Nottingham Developing Solutions Scholarship",
+          "amount_note": "50% or 100% tuition",
+          "type": "partial_or_full",
+          "eligibility": "Developing country students including India, merit-based",
+          "deadline": "February"
+        }
+      ]
+    },
+    {
+      "id": "coventry_university",
+      "full_name": "Coventry University",
+      "short_name": "Coventry",
+      "country": "UK",
+      "city": "Coventry",
+      "region": "midlands",
+      "type": "Modern University",
+      "qs_rank_2026": 801,
+      "website": "coventry.ac.uk",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "70-80% for Masters",
+      "tuition_band": "affordable",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September",
+        "January"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Business",
+        "Engineering",
+        "Computer Science",
+        "MBA",
+        "Law",
+        "Nursing"
+      ],
+      "notable": "Very accessible. January intake available. Good for students with 50-60% profiles. Reasonable fees.",
+      "courses": [
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_gbp": 18200,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 50,
+          "intake": "September / January"
+        },
+        {
+          "name": "MSc Data Science and Computational Intelligence",
+          "level": "Masters",
+          "fee_gbp": 17600,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 50,
+          "intake": "September / January"
+        },
+        {
+          "name": "MSc Advanced Software Engineering",
+          "level": "Masters",
+          "fee_gbp": 17600,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 50,
+          "intake": "September / January"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Coventry University International Scholarship",
+          "amount_gbp": 3000,
+          "type": "partial",
+          "eligibility": "Merit-based, international students",
+          "deadline": "Ongoing"
+        }
+      ]
+    },
+    {
+      "id": "queens_university_belfast",
+      "full_name": "Queen's University Belfast",
+      "short_name": "QUB",
+      "country": "UK",
+      "city": "Belfast",
+      "region": "northern_ireland",
+      "type": "Russell Group",
+      "qs_rank_2026": 301,
+      "website": "qub.ac.uk",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "50-65% for Masters",
+      "tuition_band": "affordable",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Engineering",
+        "Law",
+        "Business",
+        "Medicine",
+        "Data Science"
+      ],
+      "notable": "Cheapest cost of living in UK. Russell Group university. GREAT Scholarship participating. No visa to visit Republic of Ireland.",
+      "courses": [
+        {
+          "name": "MSc Advanced Computer Science",
+          "level": "Masters",
+          "fee_gbp": 20500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Analytics",
+          "level": "Masters",
+          "fee_gbp": 20500,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_gbp": 18500,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Vice-Chancellor's International Scholarship",
+          "amount_gbp": 3000,
+          "type": "partial",
+          "eligibility": "Merit-based, international students",
+          "deadline": "June"
+        }
+      ]
+    },
+    {
+      "id": "heriot_watt_university",
+      "full_name": "Heriot-Watt University",
+      "short_name": "Heriot-Watt",
+      "country": "UK",
+      "city": "Edinburgh",
+      "region": "scotland",
+      "type": "Research University",
+      "qs_rank_2026": 287,
+      "website": "hw.ac.uk",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "55-65% for Masters",
+      "tuition_band": "mid",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September",
+        "January"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Engineering",
+        "Petroleum Engineering",
+        "Actuarial Science",
+        "Business",
+        "Computer Science",
+        "Architecture"
+      ],
+      "notable": "Best in UK for Petroleum Engineering. Campus also in Dubai. Strong industry links. Edinburgh campuses.",
+      "courses": [
+        {
+          "name": "MSc Petroleum Engineering",
+          "level": "Masters",
+          "fee_gbp": 26500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September",
+          "note": "Best in UK for oil/gas"
+        },
+        {
+          "name": "MSc Actuarial Science",
+          "level": "Masters",
+          "fee_gbp": 21500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_gbp": 22500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Saltire Scholarship (Scotland)",
+          "amount_gbp": 8000,
+          "type": "partial",
+          "eligibility": "Indian/Chinese/Canadian/Pakistani/US/Japanese students for Scotland Masters",
+          "deadline": "June"
+        }
+      ]
+    },
+    {
+      "id": "university_of_glasgow",
+      "full_name": "University of Glasgow",
+      "short_name": "Glasgow",
+      "country": "UK",
+      "city": "Glasgow",
+      "region": "scotland",
+      "type": "Russell Group",
+      "qs_rank_2026": 78,
+      "website": "gla.ac.uk",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "40-50% for Masters",
+      "tuition_band": "mid_high",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Engineering",
+        "Medicine",
+        "Business",
+        "Law",
+        "Veterinary Science"
+      ],
+      "notable": "Russell Group. Affordable Scottish city. Strong research university. Large international student community.",
+      "courses": [
+        {
+          "name": "MSc Computing Science",
+          "level": "Masters",
+          "fee_gbp": 27660,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science",
+          "level": "Masters",
+          "fee_gbp": 26000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_gbp": 26000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Scottish Saltire Scholarship",
+          "amount_gbp": 8000,
+          "type": "partial",
+          "eligibility": "Indian/Chinese/Canadian/Pakistani/US/Japanese students for Scotland Masters",
+          "deadline": "June"
+        }
+      ]
+    },
+    {
+      "id": "cardiff_university",
+      "full_name": "Cardiff University",
+      "short_name": "Cardiff",
+      "country": "UK",
+      "city": "Cardiff",
+      "region": "wales",
+      "type": "Russell Group",
+      "qs_rank_2026": 186,
+      "website": "cardiff.ac.uk",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "50-60% for Masters",
+      "tuition_band": "affordable",
+      "application_fee_gbp": 0,
+      "deposit_gbp": 2000,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Engineering",
+        "Computer Science",
+        "Business",
+        "MBA",
+        "Law",
+        "Medicine"
+      ],
+      "notable": "Most affordable Russell Group in UK. Growing tech hub. Capital city of Wales. Low cost of living.",
+      "courses": [
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_gbp": 28000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Computing",
+          "level": "Masters",
+          "fee_gbp": 22000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science and Analytics",
+          "level": "Masters",
+          "fee_gbp": 22000,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Cardiff International Scholarship",
+          "amount_gbp": 3000,
+          "type": "partial",
+          "eligibility": "Merit-based, international students",
+          "deadline": "June"
+        }
+      ]
+    },
+    {
+      "id": "trinity_college_dublin",
+      "full_name": "Trinity College Dublin",
+      "short_name": "TCD",
+      "country": "Ireland",
+      "city": "Dublin",
+      "region": "dublin",
+      "type": "Top Tier Irish University",
+      "qs_rank_2026": 87,
+      "website": "tcd.ie",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "25-35% for Masters",
+      "tuition_band": "high",
+      "application_fee_eur": 55,
+      "deposit_eur": 500,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Law",
+        "Business",
+        "Engineering",
+        "Medicine",
+        "Data Science"
+      ],
+      "notable": "Ireland's most prestigious and oldest university. Heart of Dublin. Internationally recognised degree. 2-year post-study stay-back.",
+      "post_study_work_years": 2,
+      "courses": [
+        {
+          "name": "MSc Computer Science (Data Science)",
+          "level": "Masters",
+          "fee_eur": 22000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Business Analytics",
+          "level": "Masters",
+          "fee_eur": 20000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_eur": 22000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "LLM",
+          "level": "Masters",
+          "fee_eur": 18500,
+          "duration": "1 year",
+          "ielts_min": 7.0,
+          "min_percentage": 65,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "TCD Global Excellence Scholarship",
+          "amount_eur": 5000,
+          "type": "partial",
+          "eligibility": "Academic merit, international students",
+          "deadline": "March"
+        },
+        {
+          "name": "GOI-IES (Government of Ireland)",
+          "amount_note": "Full tuition + \u20ac10,000 stipend",
+          "type": "full",
+          "eligibility": "Non-EU/EEA students, Masters/PhD, must apply via HEA portal",
+          "deadline": "March 12, 2026"
+        }
+      ]
+    },
+    {
+      "id": "university_college_dublin",
+      "full_name": "University College Dublin",
+      "short_name": "UCD",
+      "country": "Ireland",
+      "city": "Dublin",
+      "region": "dublin",
+      "type": "Top Tier Irish University",
+      "qs_rank_2026": 181,
+      "website": "ucd.ie",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "35-50% for Masters",
+      "tuition_band": "mid_high",
+      "application_fee_eur": 55,
+      "deposit_eur": 500,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Data Analytics",
+        "Business",
+        "Finance",
+        "Engineering",
+        "Law"
+      ],
+      "notable": "Ireland's largest research university. Ireland's #1 for graduate employment. Google, Meta, LinkedIn, Microsoft all nearby in Dublin's Silicon Docks.",
+      "post_study_work_years": 2,
+      "courses": [
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_eur": 20000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Analytics",
+          "level": "Masters",
+          "fee_eur": 20000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        },
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_eur": 26500,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "gmat_min": 550,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_eur": 17400,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "UCD Global Excellence Scholarship",
+          "amount_eur": 3000,
+          "type": "partial",
+          "eligibility": "Academic excellence, international students",
+          "deadline": "June"
+        },
+        {
+          "name": "GOI-IES (Government of Ireland)",
+          "amount_note": "Full tuition + \u20ac10,000 stipend",
+          "type": "full",
+          "eligibility": "Non-EU/EEA students, Masters/PhD, must apply via HEA portal",
+          "deadline": "March 12, 2026"
+        }
+      ]
+    },
+    {
+      "id": "university_college_cork",
+      "full_name": "University College Cork",
+      "short_name": "UCC",
+      "country": "Ireland",
+      "city": "Cork",
+      "region": "cork",
+      "type": "Top Tier Irish University",
+      "qs_rank_2026": 281,
+      "website": "ucc.ie",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "50-65% for Masters",
+      "tuition_band": "mid",
+      "application_fee_eur": 50,
+      "deposit_eur": 300,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "Data Science",
+        "Software Engineering",
+        "Business",
+        "Pharmacy",
+        "Medicine"
+      ],
+      "notable": "More affordable than Dublin. Cork is Ireland's 2nd city. Lower living costs. Apple and Amazon offices in Cork. Very welcoming to Indian students.",
+      "post_study_work_years": 2,
+      "courses": [
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_eur": 17000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Science",
+          "level": "Masters",
+          "fee_eur": 17000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Software Engineering",
+          "level": "Masters",
+          "fee_eur": 16500,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_eur": 20000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "UCC International Scholarship",
+          "amount_eur": 2000,
+          "type": "partial",
+          "eligibility": "Academic merit",
+          "deadline": "July"
+        },
+        {
+          "name": "GOI-IES (Government of Ireland)",
+          "amount_note": "Full tuition + \u20ac10,000 stipend",
+          "type": "full",
+          "eligibility": "Non-EU/EEA students, Masters/PhD, must apply via HEA portal",
+          "deadline": "March 12, 2026"
+        }
+      ]
+    },
+    {
+      "id": "university_of_galway",
+      "full_name": "University of Galway",
+      "short_name": "Galway",
+      "country": "Ireland",
+      "city": "Galway",
+      "region": "galway",
+      "type": "Top Tier Irish University",
+      "qs_rank_2026": 351,
+      "website": "universityofgalway.ie",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "55-70% for Masters",
+      "tuition_band": "affordable",
+      "application_fee_eur": 50,
+      "deposit_eur": 300,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Data Analytics",
+        "Computer Science",
+        "Biomedical Engineering",
+        "Marine Science",
+        "Law",
+        "Medicine"
+      ],
+      "notable": "Most affordable cost of living in Ireland. Beautiful Atlantic coast city. Strong in Medicine and Engineering. Lower fees than Dublin.",
+      "post_study_work_years": 2,
+      "courses": [
+        {
+          "name": "MSc Data Analytics",
+          "level": "Masters",
+          "fee_eur": 14000,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_eur": 15000,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Biomedical Engineering",
+          "level": "Masters",
+          "fee_eur": 13000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "GOI-IES (Government of Ireland)",
+          "amount_note": "Full tuition + \u20ac10,000 stipend",
+          "type": "full",
+          "eligibility": "Non-EU/EEA students, Masters/PhD, must apply via HEA portal",
+          "deadline": "March 12, 2026"
+        }
+      ]
+    },
+    {
+      "id": "dublin_city_university",
+      "full_name": "Dublin City University",
+      "short_name": "DCU",
+      "country": "Ireland",
+      "city": "Dublin",
+      "region": "dublin",
+      "type": "Modern Irish University",
+      "qs_rank_2026": 601,
+      "website": "dcu.ie",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "55-65% for Masters",
+      "tuition_band": "affordable",
+      "application_fee_eur": 0,
+      "deposit_eur": 200,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computing",
+        "Data Analytics",
+        "Business",
+        "Journalism",
+        "International Business",
+        "Engineering"
+      ],
+      "notable": "Most affordable major Dublin university. Free application. High acceptance rate. Good for 50-60% profiles. Strong industry links.",
+      "post_study_work_years": 2,
+      "courses": [
+        {
+          "name": "MSc Computing",
+          "level": "Masters",
+          "fee_eur": 14400,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Analytics",
+          "level": "Masters",
+          "fee_eur": 14400,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 50,
+          "intake": "September"
+        },
+        {
+          "name": "MSc International Business",
+          "level": "Masters",
+          "fee_eur": 13500,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 50,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "GOI-IES (Government of Ireland)",
+          "amount_note": "Full tuition + \u20ac10,000 stipend",
+          "type": "full",
+          "eligibility": "Non-EU/EEA students, Masters/PhD, must apply via HEA portal",
+          "deadline": "March 12, 2026"
+        }
+      ]
+    },
+    {
+      "id": "university_of_limerick",
+      "full_name": "University of Limerick",
+      "short_name": "UL",
+      "country": "Ireland",
+      "city": "Limerick",
+      "region": "limerick",
+      "type": "Technological University",
+      "qs_rank_2026": 640,
+      "website": "ul.ie",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "60-75% for Masters",
+      "tuition_band": "affordable",
+      "application_fee_eur": 50,
+      "deposit_eur": null,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computer Science",
+        "AI",
+        "Business Analytics",
+        "Engineering",
+        "Sport Sciences",
+        "Healthcare"
+      ],
+      "notable": "Most affordable Irish university. Very strong industry co-op programs. Good for tech roles. GOI-IES scholarship eligible.",
+      "post_study_work_years": 2,
+      "courses": [
+        {
+          "name": "MSc Computer Science and Information Technology (AI)",
+          "level": "Masters",
+          "fee_eur": 14000,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 50,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Business Data Analytics",
+          "level": "Masters",
+          "fee_eur": 14500,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 50,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "GOI-IES (Government of Ireland)",
+          "amount_note": "Full tuition + \u20ac10,000 stipend",
+          "type": "full",
+          "eligibility": "Non-EU/EEA students, Masters/PhD \u2014 no deposit required for GOI-IES applicants",
+          "deadline": "March 12, 2026"
+        }
+      ]
+    },
+    {
+      "id": "griffith_college_dublin",
+      "full_name": "Griffith College Dublin",
+      "short_name": "Griffith",
+      "country": "Ireland",
+      "city": "Dublin",
+      "region": "dublin",
+      "type": "Private College",
+      "qs_rank_2026": null,
+      "website": "griffith.ie",
+      "acceptance_tier": "open",
+      "acceptance_rate_approx": "70-80%",
+      "tuition_band": "budget",
+      "application_fee_eur": 0,
+      "deposit_eur": null,
+      "intakes": [
+        "September"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "subject_strengths": [
+        "Computing",
+        "International Business",
+        "Data Analytics",
+        "Law",
+        "Journalism"
+      ],
+      "notable": "Lowest fees of any Dublin institution. Very accessible entry requirements. Good for students with lower profiles or backlogs. 2-year stay-back still applies.",
+      "post_study_work_years": 2,
+      "courses": [
+        {
+          "name": "MSc Computing",
+          "level": "Masters",
+          "fee_eur": 12500,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 50,
+          "intake": "September"
+        },
+        {
+          "name": "MSc International Business",
+          "level": "Masters",
+          "fee_eur": 11500,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 45,
+          "intake": "September"
+        },
+        {
+          "name": "MSc Data Analytics",
+          "level": "Masters",
+          "fee_eur": 12000,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 45,
+          "intake": "September"
+        }
+      ],
+      "scholarships_offered": []
+    },
+    {
+      "id": "heriot_watt_dubai",
+      "full_name": "Heriot-Watt University Dubai",
+      "short_name": "Heriot-Watt Dubai",
+      "country": "UAE",
+      "city": "Dubai",
+      "region": "dubai",
+      "location_detail": "Dubai Knowledge Park",
+      "type": "International Branch Campus",
+      "parent_university": "Heriot-Watt University (Edinburgh, UK)",
+      "parent_qs_rank_2026": 287,
+      "uk_university_ranking_complete_guide_2026": 25,
+      "website": "hw.ac.uk/dubai",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "~60%",
+      "tuition_band": "mid",
+      "application_fee_aed": 300,
+      "deposit_aed": 1000,
+      "intakes": [
+        "September",
+        "January",
+        "April"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "ielts_min_general": 6.5,
+      "min_degree_general": "2:1 (60%+)",
+      "subject_strengths": [
+        "Engineering",
+        "Computer Science",
+        "Business",
+        "Petroleum Engineering",
+        "Actuarial Science",
+        "Architecture"
+      ],
+      "tuition_fee_range_aed": {
+        "min": 60000,
+        "max": 90000
+      },
+      "tuition_fee_range_gbp_equiv": {
+        "min": 13000,
+        "max": 20000
+      },
+      "notable": "Scottish Russell Group equivalent campus. Same UK degree as Edinburgh campus. First overseas UK university in DIAC (2005). 5-star KHDA rating. No income tax in UAE.",
+      "visa_info": "UAE Student Visa sponsored by university. No minimum bank balance requirement.",
+      "work_rights": "20 hours/week on student visa",
+      "post_study": "Switch to UAE work visa \u2014 employer sponsorship required. No automatic post-study work right.",
+      "tax": "No income tax in UAE",
+      "courses": [
+        {
+          "name": "MSc Petroleum Engineering",
+          "level": "Masters",
+          "fee_aed": 76000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60
+        },
+        {
+          "name": "MSc Artificial Intelligence",
+          "level": "Masters",
+          "fee_aed": 70000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60
+        },
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_aed": 88000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55,
+          "gmat_recommended": 600
+        },
+        {
+          "name": "MSc Finance and Management",
+          "level": "Masters",
+          "fee_aed": 72000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55
+        },
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_aed": 70000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "Heriot-Watt Dubai Merit Scholarship (UG/PG)",
+          "amount_note": "Tuition fee reduction based on academic performance",
+          "type": "partial",
+          "eligibility": "Merit-based \u2014 % discount depends on grade band"
+        },
+        {
+          "name": "Future Made for Success Scholarship",
+          "amount_note": "Varies",
+          "type": "partial",
+          "eligibility": "Specific cohorts \u2014 check university website"
+        }
+      ]
+    },
+    {
+      "id": "middlesex_university_dubai",
+      "full_name": "Middlesex University Dubai",
+      "short_name": "MDX Dubai",
+      "country": "UAE",
+      "city": "Dubai",
+      "region": "dubai",
+      "location_detail": "Dubai Knowledge Park",
+      "type": "International Branch Campus",
+      "parent_university": "Middlesex University (London, UK)",
+      "website": "mdx.ac.ae",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "65-75%",
+      "tuition_band": "affordable",
+      "application_fee_aed": 0,
+      "intakes": [
+        "September",
+        "January"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "ielts_min_general": 6.0,
+      "min_degree_general": "2:2 (55%+)",
+      "subject_strengths": [
+        "Business",
+        "Law",
+        "Media",
+        "Psychology",
+        "IT",
+        "Design"
+      ],
+      "tuition_fee_range_aed": {
+        "min": 45000,
+        "max": 70000
+      },
+      "tuition_fee_range_gbp_equiv": {
+        "min": 9900,
+        "max": 15400
+      },
+      "notable": "More accessible entry requirements than other Dubai campuses. UK degree awarded. Good for students with 55% profiles.",
+      "visa_info": "UAE Student Visa sponsored by university. No minimum bank balance requirement.",
+      "work_rights": "20 hours/week on student visa",
+      "post_study": "Switch to UAE work visa \u2014 employer sponsorship required.",
+      "tax": "No income tax in UAE",
+      "courses": [
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_aed": 65000,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55
+        },
+        {
+          "name": "MSc Data Science and Informatics",
+          "level": "Masters",
+          "fee_aed": 58000,
+          "duration": "1 year",
+          "ielts_min": 6.0,
+          "min_percentage": 55
+        },
+        {
+          "name": "LLM",
+          "level": "Masters",
+          "fee_aed": 62000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 55
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "MDX Dubai International Scholarship",
+          "amount_note": "Partial tuition discount",
+          "type": "partial",
+          "eligibility": "Merit-based \u2014 check admissions office"
+        }
+      ]
+    },
+    {
+      "id": "university_of_birmingham_dubai",
+      "full_name": "University of Birmingham Dubai",
+      "short_name": "UoB Dubai",
+      "country": "UAE",
+      "city": "Dubai",
+      "region": "dubai",
+      "location_detail": "Dubai International Academic City (DIAC)",
+      "type": "International Branch Campus",
+      "parent_university": "University of Birmingham (UK)",
+      "parent_qs_rank_2026": 84,
+      "website": "birmingham.ac.uk/dubai",
+      "acceptance_tier": "selective",
+      "acceptance_rate_approx": "40-55%",
+      "tuition_band": "mid_high",
+      "application_fee_aed": 0,
+      "intakes": [
+        "September",
+        "January"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "ielts_min_general": 6.5,
+      "min_degree_general": "2:1 (60%+)",
+      "subject_strengths": [
+        "Computer Science",
+        "Engineering",
+        "Business",
+        "Finance",
+        "Law",
+        "Economics"
+      ],
+      "tuition_fee_range_aed": {
+        "min": 78000,
+        "max": 95000
+      },
+      "tuition_fee_range_gbp_equiv": {
+        "min": 17200,
+        "max": 20900
+      },
+      "notable": "Full Russell Group university campus. Identical UK degree. Strong for Finance, Engineering, Law. Higher fees than other Dubai campuses.",
+      "visa_info": "UAE Student Visa sponsored by university. No minimum bank balance requirement.",
+      "work_rights": "20 hours/week on student visa",
+      "post_study": "Switch to UAE work visa \u2014 employer sponsorship required.",
+      "tax": "No income tax in UAE",
+      "courses": [
+        {
+          "name": "MSc Computer Science",
+          "level": "Masters",
+          "fee_aed": 85000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60
+        },
+        {
+          "name": "MSc Finance",
+          "level": "Masters",
+          "fee_aed": 90000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60
+        },
+        {
+          "name": "MSc Business Analytics",
+          "level": "Masters",
+          "fee_aed": 85000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "UoB Dubai Merit Scholarship",
+          "amount_note": "Partial tuition reduction",
+          "type": "partial",
+          "eligibility": "Merit-based, strong academic profile"
+        }
+      ]
+    },
+    {
+      "id": "university_of_wollongong_dubai",
+      "full_name": "University of Wollongong Dubai",
+      "short_name": "UOWD",
+      "country": "UAE",
+      "city": "Dubai",
+      "region": "dubai",
+      "location_detail": "Dubai Knowledge Park",
+      "type": "International Branch Campus",
+      "parent_university": "University of Wollongong (Australia)",
+      "website": "uowdubai.ac.ae",
+      "acceptance_tier": "accessible",
+      "acceptance_rate_approx": "50-65%",
+      "tuition_band": "mid",
+      "application_fee_aed": 0,
+      "intakes": [
+        "September",
+        "February"
+      ],
+      "three_year_indian_degree_accepted": true,
+      "ielts_min_general": 6.5,
+      "min_degree_general": "2:1 (60%+)",
+      "subject_strengths": [
+        "Business",
+        "IT",
+        "Engineering",
+        "Education",
+        "Health",
+        "MBA"
+      ],
+      "tuition_fee_range_aed": {
+        "min": 55000,
+        "max": 75000
+      },
+      "tuition_fee_range_gbp_equiv": {
+        "min": 12100,
+        "max": 16500
+      },
+      "notable": "Australian university. Strong for MBA and Engineering. AACSB accredited Business School. Flexible payment plans.",
+      "visa_info": "UAE Student Visa sponsored by university. No minimum bank balance requirement.",
+      "work_rights": "20 hours/week on student visa",
+      "post_study": "Switch to UAE work visa \u2014 employer sponsorship required.",
+      "tax": "No income tax in UAE",
+      "courses": [
+        {
+          "name": "MBA",
+          "level": "MBA",
+          "fee_aed": 72000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60
+        },
+        {
+          "name": "MSc Information Technology",
+          "level": "Masters",
+          "fee_aed": 60000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60
+        },
+        {
+          "name": "MSc Engineering Management",
+          "level": "Masters",
+          "fee_aed": 65000,
+          "duration": "1 year",
+          "ielts_min": 6.5,
+          "min_percentage": 60
+        }
+      ],
+      "scholarships_offered": [
+        {
+          "name": "UOWD Merit Scholarship",
+          "amount_note": "Partial tuition reduction \u2014 varies",
+          "type": "partial",
+          "eligibility": "Academic merit, international students"
+        }
+      ]
+    }
+  ],
+  "filter_reference": {
+    "tuition_bands": {
+      "budget": "Under \u00a312,000 or \u20ac12,000 or AED 50,000/year",
+      "affordable": "\u00a312,000\u2013\u00a320,000 or \u20ac12,000\u2013\u20ac16,000/year",
+      "mid": "\u00a320,000\u2013\u00a327,000 or \u20ac16,000\u2013\u20ac20,000/year",
+      "mid_high": "\u00a327,000\u2013\u00a333,000 or \u20ac20,000\u2013\u20ac23,000/year",
+      "high": "\u00a333,000\u2013\u00a340,000/year",
+      "premium": "Above \u00a340,000/year"
+    },
+    "acceptance_tiers": {
+      "highly_selective": "Under 30% acceptance \u2014 requires 70%+ grades, IELTS 7.0+",
+      "selective": "30\u201350% acceptance \u2014 requires 60\u201370% grades, IELTS 6.5+",
+      "accessible": "50\u201370% acceptance \u2014 requires 50\u201360% grades, IELTS 6.0+",
+      "open": "Over 70% acceptance \u2014 accepts 45%+ grades, IELTS 6.0"
+    },
+    "regions": {
+      "UK": [
+        "london",
+        "midlands",
+        "north_england",
+        "scotland",
+        "south_england_southwest",
+        "wales",
+        "northern_ireland"
+      ],
+      "Ireland": [
+        "dublin",
+        "cork",
+        "galway",
+        "limerick"
+      ],
+      "UAE": [
+        "dubai"
+      ]
+    },
+    "post_study_work_rights": {
+      "UK": "Graduate Route Visa \u2014 2 years after Masters (18 months for some pre-Nov 2024 courses)",
+      "Ireland": "Third Level Graduate Programme \u2014 2 years for Honours/Masters, 1 year for others",
+      "UAE_Dubai": "No automatic post-study work right \u2014 employer sponsorship required for UAE work visa"
+    }
+  }
+}

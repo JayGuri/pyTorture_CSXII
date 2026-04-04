@@ -16,9 +16,14 @@ const LEADERS = [
 
 const Leadership = () => {
   return (
-    <section id="leadership" className="bg-fateh-paper px-6 py-20 md:px-10 lg:py-24">
+    <section
+      id="leadership"
+      className="bg-fateh-paper px-6 py-20 md:px-10 lg:py-24"
+    >
       <div className="mx-auto max-w-[1920px]">
-        <p className="text-[0.72rem] uppercase tracking-[0.18em] text-fateh-gold">Top Management</p>
+        <p className="text-[0.72rem] uppercase tracking-[0.18em] text-fateh-gold font-bold">
+          Top Management
+        </p>
         <div className="mt-10 grid grid-cols-1 gap-8 md:grid-cols-2">
           {LEADERS.map((l, i) => (
             <motion.article
@@ -29,9 +34,15 @@ const Leadership = () => {
               transition={{ delay: i * 0.1 }}
               className="border border-fateh-border p-10"
             >
-              <h3 className="font-fateh-serif text-2xl font-semibold text-fateh-ink normal-case">{l.name}</h3>
-              <p className="mt-1 text-[0.78rem] uppercase tracking-[0.1em] text-fateh-gold">{l.role}</p>
-              <p className="mt-5 text-[0.95rem] leading-[1.8] text-fateh-muted normal-case">{l.bio}</p>
+              <h3 className="font-fateh-serif text-2xl font-semibold text-fateh-ink normal-case">
+                {l.name}
+              </h3>
+              <p className="mt-1 text-[0.78rem] uppercase tracking-[0.1em] text-fateh-gold">
+                {l.role}
+              </p>
+              <p className="mt-5 text-[0.95rem] leading-[1.8] text-fateh-muted normal-case">
+                {l.bio}
+              </p>
             </motion.article>
           ))}
         </div>
