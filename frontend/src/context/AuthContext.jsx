@@ -1,11 +1,22 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_LOGIN_HINT } from "../admin/constants.js";
 import { validateEmail, validateFullName, validateNewPassword } from "../lib/formValidation.js";
 
 const SESSION_KEY = "fateh-session";
 const USERS_KEY = "fateh-users";
 
+/** Same login as students; `role: "admin"` unlocks `/admin/*`. */
+const ADMIN_SEED_USER = {
+  id: "seed-admin",
+  email: ADMIN_EMAIL,
+  password: ADMIN_PASSWORD,
+  name: "PS Console Admin",
+  role: "admin",
+  preliminaryCallDone: true,
+};
+
 export const DEMO_ACCOUNTS_HINT =
-  "demo@fateh.education / demo12345 · new@fateh.education / newuser123";
+  `demo@fateh.education / demo12345 · new@fateh.education / newuser123 · PS admin: ${ADMIN_LOGIN_HINT}`;
 
 const SEED_USERS = [
   {
@@ -41,8 +52,8 @@ function writeCustomUsers(list) {
 
 function allUsers() {
   const custom = readCustomUsers();
-  const seen = new Set(SEED_USERS.map((u) => u.email.toLowerCase()));
-  const merged = [...SEED_USERS];
+  const seen = new Set([ADMIN_SEED_USER.email.toLowerCase(), ...SEED_USERS.map((u) => u.email.toLowerCase())]);
+  const merged = [ADMIN_SEED_USER, ...SEED_USERS];
   for (const u of custom) {
     if (!u?.email || seen.has(String(u.email).toLowerCase())) continue;
     merged.push(u);
@@ -92,8 +103,9 @@ export function AuthProvider({ children }) {
     );
     if (!found) return { ok: false, error: "Invalid email or password." };
     writeSession(found.email);
-    setUser(stripUser(found));
-    return { ok: true };
+    const safe = stripUser(found);
+    setUser(safe);
+    return { ok: true, user: safe };
   }, []);
 
   const signup = useCallback((name, email, password) => {
@@ -117,8 +129,9 @@ export function AuthProvider({ children }) {
     const custom = readCustomUsers();
     writeCustomUsers([...custom, record]);
     writeSession(record.email);
-    setUser(stripUser(record));
-    return { ok: true };
+    const safe = stripUser(record);
+    setUser(safe);
+    return { ok: true, user: safe };
   }, []);
 
   const logout = useCallback(() => {
@@ -140,6 +153,7 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook colocated with AuthProvider
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
