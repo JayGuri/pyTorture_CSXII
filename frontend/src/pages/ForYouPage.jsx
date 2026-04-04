@@ -31,6 +31,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useForYouDashboard } from "../hooks/useForYouDashboard";
 import AskFatehSidebar from "../components/forYou/AskFatehSidebar";
 import UniversityMap from "../components/forYou/UniversityMap";
 import StaggeredMenu from "../components/StaggeredMenu/StaggeredMenu";
@@ -76,6 +77,16 @@ export default function ForYouPage() {
   const { user } = useAuth();
   const location = useLocation();
   const first = user?.name?.split(" ")[0] || "there";
+
+  // Fetch dashboard from backend
+  const {
+    dashboard,
+    leadProfile,
+    recommendations,
+    insights,
+    loading: dashboardLoading,
+    error: dashboardError,
+  } = useForYouDashboard(user?.sessionId, user?.email, !!user);
 
   const [selectedId, setSelectedId] = useState(PROGRAMS[0]?.id ?? "");
   const [compareIds, setCompareIds] = useState(() => []);
@@ -286,6 +297,38 @@ export default function ForYouPage() {
     return () => clearTimeout(id);
   }, [scenariosOpen]);
 
+  // Show loading state while fetching dashboard
+  if (dashboardLoading) {
+    return (
+      <div className="relative min-h-screen overflow-x-hidden bg-fateh-paper pb-32 pt-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-fateh-gold/30 border-t-fateh-gold" />
+          <p className="mt-4 text-fateh-gold">Loading your personalized dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if dashboard fetch failed
+  if (dashboardError) {
+    return (
+      <div className="relative min-h-screen overflow-x-hidden bg-fateh-paper pb-32 pt-8 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertCircle className="h-12 w-12 mx-auto text-red-400 mb-4" strokeWidth={1.5} />
+          <p className="text-lg font-semibold text-white mb-2">Could not load dashboard</p>
+          <p className="text-sm text-fateh-muted mb-6">{dashboardError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center gap-2 rounded-lg bg-fateh-gold px-6 py-3 text-sm font-semibold uppercase text-fateh-ink hover:bg-fateh-gold-light transition"
+          >
+            <RefreshCw className="h-4 w-4" strokeWidth={2} />
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-fateh-paper pb-32 pt-8">
       <StaggeredMenu
@@ -459,6 +502,68 @@ export default function ForYouPage() {
           </motion.div>
         </div>
       </header>
+
+      {/* Profile Completeness Section - Backend Data */}
+      {leadProfile && (
+        <div className="mx-auto max-w-6xl px-5 pt-8 sm:px-6 lg:pl-18 lg:pr-8">
+          <div className="rounded-lg border border-fateh-gold/20 bg-fateh-gold/5 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-fateh-gold">
+                  Profile Completeness
+                </h3>
+                <p className="mt-1 text-sm text-fateh-muted">
+                  Personalized recommendations improve as you complete more fields
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-fateh-gold">
+                  {leadProfile.data_completeness || 0}%
+                </div>
+                <p className="text-xs text-fateh-muted mt-1">Complete</p>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div className="relative h-3 rounded-full bg-fateh-gold/10 overflow-hidden">
+              <motion.div
+                className="h-full bg-linear-to-r from-fateh-gold to-fateh-gold-light"
+                initial={{ width: 0 }}
+                animate={{ width: `${leadProfile.data_completeness || 0}%` }}
+                transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+              />
+            </div>
+
+            {/* Key metrics from backend */}
+            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="rounded bg-fateh-ink/40 p-3">
+                <p className="text-xs uppercase tracking-wider text-fateh-muted">Classification</p>
+                <p className="mt-1 text-lg font-semibold text-fateh-gold">
+                  {leadProfile.classification || "Unclassified"}
+                </p>
+              </div>
+              <div className="rounded bg-fateh-ink/40 p-3">
+                <p className="text-xs uppercase tracking-wider text-fateh-muted">Lead Score</p>
+                <p className="mt-1 text-lg font-semibold text-fateh-gold">
+                  {leadProfile.lead_score || 0}/100
+                </p>
+              </div>
+              <div className="rounded bg-fateh-ink/40 p-3">
+                <p className="text-xs uppercase tracking-wider text-fateh-muted">Intent</p>
+                <p className="mt-1 text-lg font-semibold text-fateh-gold">
+                  {leadProfile.intent_score || 0}/100
+                </p>
+              </div>
+              <div className="rounded bg-fateh-ink/40 p-3">
+                <p className="text-xs uppercase tracking-wider text-fateh-muted">Timeline</p>
+                <p className="mt-1 text-lg font-semibold text-fateh-gold">
+                  {leadProfile.timeline_score || 0}/100
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick actions */}
       <div

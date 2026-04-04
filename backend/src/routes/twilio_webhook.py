@@ -245,12 +245,13 @@ async def voice(request: Request):
     session_id = result.data[0]["id"] if result.data else None
 
     # Create initial lead record with phone number (early onboarding)
+    # Classification starts as "Cold" and gets updated as call progresses
     if session_id:
         try:
             supabase.table("leads").insert({
                 "session_id": session_id,
                 "phone": caller,
-                "classification": "New",
+                "classification": "Cold",
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }).execute()
             logger.info(f"Lead onboarded | session_id={session_id} phone={caller}")
