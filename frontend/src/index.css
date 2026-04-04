@@ -1,1 +1,61 @@
 @import "tailwindcss";
+
+@theme {
+  --font-outfit: "Outfit", sans-serif;
+  --font-jakarta: "Plus Jakarta Sans", sans-serif;
+  
+  --color-brand-ivory: #FFFFFF;
+  --color-brand-gold: #D4AF37;
+  --color-brand-gold-muted: #C5A028;
+  --color-brand-obsidian: #121212;
+  --color-brand-graphite: #242424;
+  --color-brand-silt: #454545;
+  --color-brand-accent: #F9F9F9;
+}
+
+@layer base {
+  html, body {
+    background-color: #FFFFFF !important;
+    color: #1A1A1A !important;
+    @apply font-jakarta overflow-x-hidden antialiased;
+    margin: 0;
+    min-height: 100vh;
+  }
+
+  /* Force white on all sections to override potential bridge-injected styles */
+  section {
+    background-color: #FFFFFF !important;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-outfit font-bold tracking-[-0.04em] uppercase text-brand-obsidian;
+  }
+}
+
+/* selection overrides */
+::selection {
+  background-color: #D4AF37 !important;
+  color: #FFFFFF !important;
+}
+
+/* Lenis Recommended CSS */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
