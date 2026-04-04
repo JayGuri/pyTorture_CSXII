@@ -1,36 +1,50 @@
 import React from "react";
-import SmoothScroll from "./components/SmoothScroll";
-import Navbar from "./components/Navbar";
-import Hero from "./components/Hero";
-import Mission from "./components/Mission";
-import Achievements from "./components/Achievements";
-import Universities from "./components/Universities";
-import Services from "./components/Services";
-import Leadership from "./components/Leadership";
-import Testimonials from "./components/Testimonials";
-import Register from "./components/Register";
-import Footer from "./components/Footer";
+import { Routes, Route } from "react-router-dom";
+import Layout from "./components/Layout";
+import ProtectedRoute from "./components/ProtectedRoute";
+import HomePage from "./pages/HomePage";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
+import ForYouPage from "./pages/ForYouPage";
 
 function App() {
   return (
-    <SmoothScroll>
-      <div className="relative">
-        <Navbar />
-        <main>
-          <Hero />
-          <div className="h-px bg-fateh-border" />
-          <Mission />
-          <div className="h-px bg-fateh-border" />
-          <Achievements />
-          <Universities />
-          <Services />
-          <Leadership />
-          <Testimonials />
-          <Register />
-        </main>
-        <Footer />
-      </div>
-    </SmoothScroll>
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <Layout>
+            <HomePage />
+          </Layout>
+        }
+      />
+      <Route
+        path="/login"
+        element={
+          <Layout>
+            <LoginPage />
+          </Layout>
+        }
+      />
+      <Route
+        path="/signup"
+        element={
+          <Layout>
+            <SignupPage />
+          </Layout>
+        }
+      />
+      <Route
+        path="/for-you"
+        element={
+          <Layout>
+            <ProtectedRoute>
+              <ForYouPage />
+            </ProtectedRoute>
+          </Layout>
+        }
+      />
+    </Routes>
   );
 }
 
