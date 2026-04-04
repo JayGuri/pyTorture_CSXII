@@ -17,6 +17,7 @@ from src.routes.leads import router as leads_router
 from src.routes.sessions import router as sessions_router
 from src.routes.health import router as health_router
 from src.routes.voice_agent import router as voice_agent_router
+from src.routes.for_you import router as for_you_router
 from src.services.stt.sarvam import close_stt_http_client
 from src.services.transcription.live_stream import set_sio
 from src.cron.exchange_rates import refresh_rates
@@ -146,6 +147,7 @@ app.include_router(leads_router)
 app.include_router(sessions_router)
 app.include_router(health_router)
 app.include_router(voice_agent_router)
+app.include_router(for_you_router)
 
 
 @app.get("/")

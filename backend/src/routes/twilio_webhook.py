@@ -276,7 +276,7 @@ async def voice(request: Request):
     session_id = result.data[0]["id"] if result.data else None
 
     # Create initial lead record with phone number (early onboarding)
-    # classification must be Hot/Warm/Cold per DB check constraint — use Cold as default
+    # Classification starts as "Cold" and gets updated as call progresses
     if session_id:
         try:
             supabase.table("leads").upsert({
