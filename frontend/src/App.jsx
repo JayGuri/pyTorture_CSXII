@@ -1,11 +1,15 @@
-import React from 'react';
-import SmoothScroll from './components/SmoothScroll';
-import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import Stats from './components/Stats';
-import Services from './components/Services';
-import Universities from './components/Universities';
-import Footer from './components/Footer';
+import React from "react";
+import SmoothScroll from "./components/SmoothScroll";
+import Navbar from "./components/Navbar";
+import Hero from "./components/Hero";
+import Mission from "./components/Mission";
+import Achievements from "./components/Achievements";
+import Universities from "./components/Universities";
+import Services from "./components/Services";
+import Leadership from "./components/Leadership";
+import Testimonials from "./components/Testimonials";
+import Register from "./components/Register";
+import Footer from "./components/Footer";
 
 function App() {
   return (
@@ -14,9 +18,15 @@ function App() {
         <Navbar />
         <main>
           <Hero />
-          <Stats />
-          <Services />
+          <div className="h-px bg-fateh-border" />
+          <Mission />
+          <div className="h-px bg-fateh-border" />
+          <Achievements />
           <Universities />
+          <Services />
+          <Leadership />
+          <Testimonials />
+          <Register />
         </main>
         <Footer />
       </div>
