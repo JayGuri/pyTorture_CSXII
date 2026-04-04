@@ -5,7 +5,7 @@ Maintains multi-turn conversation state and extracted data points
 
 from datetime import datetime
 from typing import Optional, Dict, List, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ExtractedDataPoint(BaseModel):
@@ -24,23 +24,23 @@ class ConversationContext(BaseModel):
     user_id: Optional[str] = None
     language: str = "en"  # en, hi, mr
     turn_count: int = 0
-    start_time: datetime = None
-    last_interaction: datetime = None
-    
+    start_time: Optional[datetime] = None
+    last_interaction: Optional[datetime] = None
+
     # Extracted data points (minimum 12 required)
-    extracted_data: Dict[str, Any] = {}  # Flat dict of extracted values
-    data_points: List[ExtractedDataPoint] = []
-    
+    extracted_data: Dict[str, Any] = Field(default_factory=dict)  # Flat dict of extracted values
+    data_points: List[ExtractedDataPoint] = Field(default_factory=list)
+
     # Conversation memory
-    messages: List[Dict[str, str]] = []  # [{"role": "user|assistant", "text": "...", "sentiment": "..."}]
-    
+    messages: List[Dict[str, str]] = Field(default_factory=list)  # [{"role": "user|assistant", "text": "...", "sentiment": "..."}]
+
     # Sentiment tracking
-    user_sentiment_trend: List[str] = []  # Track sentiment over conversation
+    user_sentiment_trend: List[str] = Field(default_factory=list)  # Track sentiment over conversation
     latest_user_sentiment: Optional[str] = None  # excited, confused, hesitant, neutral, interested
-    
+
     # Context for follow-up questions
-    answered_topics: set = set()
-    pending_clarifications: List[str] = []
+    answered_topics: set = Field(default_factory=set)
+    pending_clarifications: List[str] = Field(default_factory=list)
     
     class Config:
         arbitrary_types_allowed = True

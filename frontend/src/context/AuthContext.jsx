@@ -8,6 +8,7 @@ const USERS_KEY = "fateh-users";
 /** Same login as students; `role: "admin"` unlocks `/admin/*`. */
 const ADMIN_SEED_USER = {
   id: "seed-admin",
+  sessionId: "session-admin-user",
   email: ADMIN_EMAIL,
   password: ADMIN_PASSWORD,
   name: "PS Console Admin",
@@ -21,6 +22,7 @@ export const DEMO_ACCOUNTS_HINT =
 const SEED_USERS = [
   {
     id: "seed-demo",
+    sessionId: "session-demo-user",
     email: "demo@fateh.education",
     password: "demo12345",
     name: "Aanya Sharma",
@@ -37,6 +39,7 @@ const SEED_USERS = [
   },
   {
     id: "seed-new",
+    sessionId: "session-new-user",
     email: "new@fateh.education",
     password: "newuser123",
     name: "Vikram Singh",
@@ -122,6 +125,10 @@ export function AuthProvider({ children }) {
     if (!found) return { ok: false, error: "Invalid email or password." };
     writeSession(found.email);
     const safe = stripUser(found);
+    // Add sessionId if not present
+    if (!safe.sessionId) {
+      safe.sessionId = `session-${crypto.randomUUID()}`;
+    }
     setUser(safe);
     return { ok: true, user: safe };
   }, []);
@@ -139,6 +146,7 @@ export function AuthProvider({ children }) {
     }
     const record = {
       id: `u-${crypto.randomUUID()}`,
+      sessionId: `session-${crypto.randomUUID()}`,
       email: normalized,
       password,
       name: nameRes.value,

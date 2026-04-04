@@ -6,6 +6,7 @@ REST API endpoints for web-based voice agent with sentiment analysis and smart d
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+from datetime import datetime
 import base64
 import logging
 
@@ -20,12 +21,83 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/voice-agent", tags=["voice-agent"])
 
 
+@router.post("/debug")
+async def debug_endpoint():
+    """Debug endpoint to check raw request"""
+    logger.info(f"[DEBUG] Raw request received")
+    return {"status": "ok"}
+
+
+@router.post("/test-validation")
+async def test_validation(data: dict):
+    """Test endpoint to validate request parsing"""
+    logger.info(f"[TEST] Received keys: {list(data.keys())}")
+    for key, value in data.items():
+        if isinstance(value, str) and len(value) > 100:
+            logger.info(f"[TEST] {key}: {type(value).__name__} (length: {len(value)})")
+        else:
+            logger.info(f"[TEST] {key}: {value} ({type(value).__name__})")
+    return {"received": data}
+
+
+@router.post("/diagnose")
+async def diagnose_transcribe(data: dict):
+    """Diagnostic endpoint - accepts anything and reports what's received"""
+    logger.info("[DIAGNOSE] === TRANSCRIBE DIAGNOSTIC ===")
+    logger.info(f"[DIAGNOSE] Received {len(data)} fields")
+
+    required_fields = ["audio_base64", "session_id", "language", "user_id"]
+    for field in required_fields:
+        if field in data:
+            value = data[field]
+            if isinstance(value, str) and len(value) > 100:
+                logger.info(f"[DIAGNOSE] ✓ {field}: {type(value).__name__} ({len(value)} chars)")
+            else:
+                logger.info(f"[DIAGNOSE] ✓ {field}: {repr(value)}")
+        else:
+            logger.warning(f"[DIAGNOSE] ✗ {field}: MISSING")
+
+    extra_fields = [k for k in data.keys() if k not in required_fields]
+    if extra_fields:
+        logger.info(f"[DIAGNOSE] Extra fields: {extra_fields}")
+
+    # Try to convert to VoiceChunkRequest manually
+    try:
+        VoiceChunkRequest(**data)
+        logger.info("[DIAGNOSE] ✓ Successfully validated as VoiceChunkRequest")
+        return {
+            "status": "ok",
+            "message": "Request is valid",
+            "received_fields": list(data.keys()),
+        }
+    except Exception as e:
+        logger.error(f"[DIAGNOSE] ✗ Validation failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "received_fields": list(data.keys()),
+        }
+
+
 class VoiceChunkRequest(BaseModel):
     """Request model for processing voice chunk"""
     audio_base64: str  # Base64-encoded WAV/MP3
     session_id: str
     language: str = "en"  # en, hi, mr
     user_id: Optional[str] = None
+
+    class Config:
+        # Allow unknown fields to pass through
+        extra = "allow"
+
+    def __init__(self, **data):
+        logger.debug(f"[VoiceChunkRequest] Initializing with keys: {list(data.keys())}")
+        for key, value in data.items():
+            if isinstance(value, str) and len(value) > 100:
+                logger.debug(f"[VoiceChunkRequest] {key}: {type(value).__name__} (length: {len(value)})")
+            else:
+                logger.debug(f"[VoiceChunkRequest] {key}: {type(value).__name__}")
+        super().__init__(**data)
 
 
 class SentimentAnalysisRequest(BaseModel):
@@ -58,7 +130,7 @@ class VoiceChunkResponse(BaseModel):
 async def transcribe_voice(request: VoiceChunkRequest):
     """
     Transcribe voice audio and analyze sentiment + extract data
-    
+
     **Features:**
     - Multi-language STT (English, Hindi, Marathi)
     - Real-time sentiment analysis
@@ -68,10 +140,18 @@ async def transcribe_voice(request: VoiceChunkRequest):
     """
     import time
     start_time = time.time()
-    
+
     try:
+        # Debug: Log incoming request
+        logger.info(f"[VOICE_AGENT] Received transcribe request")
+        logger.info(f"[VOICE_AGENT] session_id: {request.session_id}")
+        logger.info(f"[VOICE_AGENT] language: {request.language}")
+        logger.info(f"[VOICE_AGENT] user_id: {request.user_id}")
+        logger.info(f"[VOICE_AGENT] audio_base64 length: {len(request.audio_base64) if request.audio_base64 else 0}")
+
         # Validate inputs
         if not request.audio_base64 or not request.session_id:
+            logger.error(f"[VOICE_AGENT] Missing required fields - audio_base64: {bool(request.audio_base64)}, session_id: {bool(request.session_id)}")
             raise HTTPException(status_code=400, detail="Missing audio_base64 or session_id")
         
         # Decode audio
@@ -255,5 +335,3 @@ def _get_category(key: str) -> str:
     return category_map.get(key, "other")
 
 
-# Import datetime for session queries
-from datetime import datetime
