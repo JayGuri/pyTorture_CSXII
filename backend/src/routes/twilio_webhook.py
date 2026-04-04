@@ -208,8 +208,8 @@ def _say(text: str, lang: str) -> str:
 def _record(lang: str) -> str:
     action = _build_url(_twilio_path("/process-recording"), {"lang": lang})
     return (
-        f'<Record action="{action}" method="POST" maxLength="25" '
-        f'timeout="3" playBeep="true" trim="trim-silence" actionOnEmptyResult="true"/>'
+        f'<Record action="{action}" method="POST" maxLength="60" '
+        f'timeout="6" playBeep="true" trim="trim-silence" actionOnEmptyResult="true"/>'
     )
 
 
@@ -243,6 +243,19 @@ async def voice(request: Request):
         .execute()
     )
     session_id = result.data[0]["id"] if result.data else None
+
+    # Create initial lead record with phone number (early onboarding)
+    if session_id:
+        try:
+            supabase.table("leads").insert({
+                "session_id": session_id,
+                "phone": caller,
+                "classification": "New",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).execute()
+            logger.info(f"Lead onboarded | session_id={session_id} phone={caller}")
+        except Exception as exc:
+            logger.warning(f"Failed to create initial lead record | session_id={session_id} err={exc}")
 
     # Initialize in-memory state
     CALL_STATE[call_sid] = {
