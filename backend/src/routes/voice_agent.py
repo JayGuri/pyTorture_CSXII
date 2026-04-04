@@ -12,15 +12,12 @@ import logging
 from src.config.env import env
 from src.services.voice_agent.sentiment import analyze_sentiment
 from src.services.voice_agent.extractor import extract_data
-from src.services.stt.sarvam import SarvamSTT
+from src.services.stt.sarvam import transcribe_audio
 from src.services.voice_agent.context import get_or_create_context
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/voice-agent", tags=["voice-agent"])
-
-# Initialize STT service
-stt = SarvamSTT()
 
 
 class VoiceChunkRequest(BaseModel):
@@ -93,9 +90,9 @@ async def transcribe_voice(request: VoiceChunkRequest):
         # Step 1: Transcribe audio
         logger.info(f"[{request.session_id}] Transcribing audio ({len(audio_bytes)} bytes)")
         try:
-            transcription = await stt.transcribe_audio(
+            transcription = await transcribe_audio(
                 audio_bytes,
-                language=request.language
+                language_code=request.language,
             )
         except Exception as e:
             logger.error(f"STT error: {e}")

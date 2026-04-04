@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from src.config.env import env
 from src.services.voice_agent.intent_classifier import analyze_transcript, classify_intent
@@ -30,6 +31,57 @@ from src.models.types import (
     PersonaType,
 )
 from src.utils.logger import logger
+from src.services.voice_agent.onboarding_queue import (
+    get_pending_questions,
+    mark_question_answered,
+    mark_question_asked,
+    ONBOARDING_QUESTION_TEMPLATES,
+)
+
+# BUG-4 FIX: Per-call locks to prevent concurrent _post_process tasks from clobbering state
+_extraction_locks: Dict[str, asyncio.Lock] = {}
+
+# Step 4: Field path → onboarding question key mapping
+FIELD_TO_QUESTION_KEY: Dict[str, str] = {
+    "name":                         "name",
+    "location.city":                "location",
+    "education.level":              "education_level",
+    "education.field":              "field",
+    "education.gpa_percentage":     "gpa",
+    "education.institution":        "institution",
+    "preferences.target_countries": "target_countries",
+    "preferences.course_interest":  "course_interest",
+    "preferences.intake_timing":    "intake_timing",
+    "test_status.score":            "ielts_status",
+    "financial.budget_range":       "budget_range",
+    "financial.scholarship_interest": "scholarship",
+}
+
+# Step 6: Signal keywords to detect which question the AI is asking
+QUESTION_SIGNALS: Dict[str, List[str]] = {
+    "target_countries":  ["uk", "ireland", "country"],
+    "education_level":   ["bachelor", "graduate", "degree", "studying"],
+    "course_interest":   ["course", "program", "subject", "study"],
+    "ielts_status":      ["ielts", "pte", "english", "test", "score"],
+    "budget_range":      ["budget", "afford", "cost", "lakh", "fee"],
+    "intake_timing":     ["september", "january", "intake", "start", "when"],
+    "scholarship":       ["scholarship", "funding", "merit"],
+    "name":              ["your name", "call you", "may i know"],
+    "location":          ["city", "calling from", "where are you"],
+    "field":             ["background", "engineering", "science", "commerce"],
+    "gpa":               ["percentage", "gpa", "cgpa", "marks"],
+    "institution":       ["college", "university", "institution"],
+}
+
+
+def _detect_question_being_asked(reply: str, pending_keys: List[str]) -> Optional[str]:
+    """Scan the LLM reply to detect which onboarding question it most likely covers."""
+    reply_lower = reply.lower()
+    for key in pending_keys:
+        signals = QUESTION_SIGNALS.get(key, [])
+        if any(sig in reply_lower for sig in signals):
+            return key
+    return None
 
 
 class ProcessTurnResult:
@@ -76,8 +128,16 @@ async def process_turn(
         persona_instructions = get_persona_instructions(persona)
         timings["persona_ms"] = int((perf_counter() - persona_started) * 1000)
 
-        # Step 5: Assemble full prompt
+        # Step 5: Fetch pending onboarding questions + assemble prompt
         prompt_started = perf_counter()
+        pending_keys = await get_pending_questions(session_id)
+        pending_texts = [
+            next(
+                (t["text"] for t in ONBOARDING_QUESTION_TEMPLATES if t["key"] == k),
+                k,
+            )
+            for k in pending_keys[:4]   # cap at 4 so prompt doesn't bloat
+        ]
         system_prompt = assemble_prompt(
             lang=detected_lang or lang,
             intent=analysis.intent,
@@ -87,6 +147,7 @@ async def process_turn(
             transcript=transcript,
             persona_instructions=persona_instructions,
             session_id=session_id,
+            pending_questions=pending_texts,
         )
         timings["prompt_ms"] = int((perf_counter() - prompt_started) * 1000)
 
@@ -112,20 +173,35 @@ async def process_turn(
         await broadcast_transcript(session_id, reply, True, "ai")
         timings["ai_broadcast_ms"] = int((perf_counter() - ai_broadcast_started) * 1000)
 
+        # Step 6: Track which onboarding question the AI just asked
+        if pending_keys:
+            asked_key = _detect_question_being_asked(reply, pending_keys)
+            if asked_key:
+                turn = state.get("turns", 0)
+                asyncio.create_task(mark_question_asked(session_id, asked_key, turn))
+
         # Step 9: Extract lead data, score, and persist LeadSnapshot (background)
+        # BUG-4 FIX: snapshot current extracted_data_obj BEFORE spawning background task
+        existing_obj_snapshot = copy.deepcopy(state.get("extracted_data_obj"))
+        call_sid = state.get("call_sid", "")
+
+        # Get or create per-call lock
+        if call_sid not in _extraction_locks:
+            _extraction_locks[call_sid] = asyncio.Lock()
+        extraction_lock = _extraction_locks[call_sid]
+
         async def _post_process():
             try:
                 if not session_id:
                     logger.warning(
                         f"Skipping lead upsert due to missing session_id | "
-                        f"call_sid={state.get('call_sid')}"
+                        f"call_sid={call_sid}"
                     )
                     return
 
                 # ── Build full snapshot ───────────────────────
-                existing_obj: ExtractedData | None = state.get("extracted_data_obj")
-                extracted, objections, emotional, completeness_count = \
-                    extract_lead_data_from_text(transcript, existing_obj)
+                extracted, objections, emotional, completeness_count, flags = \
+                    extract_lead_data_from_text(transcript, existing_obj_snapshot)
 
                 score = calculate_lead_score(extracted)
 
@@ -150,7 +226,9 @@ async def process_turn(
                     emotional_state=emotional,
                 )
 
-                state["extracted_data_obj"] = extracted  # keep typed object in state
+                # BUG-4 FIX: acquire lock before writing back to shared state
+                async with extraction_lock:
+                    state["extracted_data_obj"] = extracted  # keep typed object in state
 
                 # ── Flatten to DB columns (existing schema unchanged) ──
                 lead_payload = {
@@ -194,6 +272,10 @@ async def process_turn(
                     # Full snapshot in counsellor_brief JSONB
                     "counsellor_brief": snapshot.model_dump(),
                     "updated_at":       datetime.now(timezone.utc).isoformat(),
+                    # BUG-5 FIX: flag columns
+                    "callback_requested":   flags.get("callback_requested", False),
+                    "competitor_mentioned": flags.get("competitor_mentioned", False),
+                    "ielts_upsell_flag":    flags.get("ielts_upsell_flag", False),
                 }
 
                 # Upsert lead in Supabase
@@ -236,8 +318,31 @@ async def process_turn(
                     "persona_type": persona.value,
                 }).eq("id", session_id).execute()
 
+                # Step 4: Detect which onboarding questions are now answered
+                try:
+                    post_pending = await get_pending_questions(session_id)
+                    turn = state.get("turns", 0)
+                    for field_path, q_key in FIELD_TO_QUESTION_KEY.items():
+                        if q_key not in post_pending:
+                            continue
+                        parts = field_path.split(".")
+                        val = extracted
+                        for part in parts:
+                            val = getattr(val, part, None)
+                            if val is None:
+                                break
+                        if val not in (None, "", [], False):
+                            answer_str = ", ".join(val) if isinstance(val, list) else str(val)
+                            await mark_question_answered(session_id, q_key, answer_str, turn)
+                except Exception as oq_exc:
+                    logger.warning(f"Onboarding Q&A detection failed | err={oq_exc}")
+
             except Exception as exc:
                 logger.error(f"Post-processing error: {exc}")
+            finally:
+                # Clean up lock if no more tasks need it
+                if call_sid in _extraction_locks and not extraction_lock.locked():
+                    _extraction_locks.pop(call_sid, None)
 
         asyncio.create_task(_post_process())
 

@@ -23,6 +23,7 @@ from src.cron.exchange_rates import refresh_rates
 from src.cron.visa_fees import seed_visa_data
 from src.cron.kb_gap_researcher import research_kb_gaps
 from src.cron.drift_detector import detect_drift
+from src.services.voice_agent.sentiment import get_sentiment_analyzer
 from src.utils.logger import logger
 
 # ─── APScheduler ─────────────────────────────────────────
@@ -93,6 +94,10 @@ async def lifespan(app: FastAPI):
     # Run once on startup
     asyncio.create_task(refresh_rates())
     asyncio.create_task(seed_visa_data())
+
+    # Warm up sentiment analyzer models (fire-and-forget)
+    analyzer = get_sentiment_analyzer()
+    asyncio.create_task(analyzer.warm_up())
 
     # Schedule recurring jobs
     scheduler.add_job(refresh_rates, IntervalTrigger(hours=6), id="exchange_rates")

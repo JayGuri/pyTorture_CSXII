@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from src.models.types import (
     BudgetStatus,
@@ -55,6 +55,17 @@ _OBJECTION_PATTERNS = [
      "IELTS score below requirement"),
 ]
 
+# ── BUG-5 FIX: Callback / competitor / upsell detection ──
+_CALLBACK_PATTERNS = [
+    "call back", "callback", "ring me", "bol dena",
+    "baad mein baat", "connect me to counsellor",
+]
+
+_COMPETITOR_NAMES = [
+    "ielts ninja", "leverage edu", "edvoy", "idp",
+    "british council", "yocket", "gradright",
+]
+
 # ── Emotion keyword lists ────────────────────────────────
 _ANXIETY_HIGH  = ["scared", "worried", "tension", "nervous", "dar lag", "chinta"]
 _ANXIETY_LOW   = ["excited", "confident", "ready", "sure", "bilkul"]
@@ -82,11 +93,11 @@ _COMPLETENESS_FIELDS = [
 def extract_lead_data_from_text(
     transcript: str,
     existing: Optional[ExtractedData] = None,
-) -> Tuple[ExtractedData, List[str], EmotionalState, int]:
+) -> Tuple[ExtractedData, List[str], EmotionalState, int, Dict[str, bool]]:
     """Extract structured lead data from transcript text.
 
     Returns:
-        (ExtractedData, objections, emotional_state, completeness_count)
+        (ExtractedData, objections, emotional_state, completeness_count, flags)
     """
     # Start from existing or fresh
     if existing is not None:
@@ -249,4 +260,14 @@ def extract_lead_data_from_text(
         if (v := fn(extracted)) not in (None, "", [], False)
     )
 
-    return extracted, objections, emotional, completeness_count
+    # ── BUG-5 FIX: Flag detection ─────────────────────────
+    flags: Dict[str, bool] = {
+        "callback_requested": any(p in t for p in _CALLBACK_PATTERNS),
+        "competitor_mentioned": any(c in t for c in _COMPETITOR_NAMES),
+        "ielts_upsell_flag": (
+            (extracted.test_status.score is not None and extracted.test_status.score < 6.0)
+            or extracted.test_status.stage == TestStage.NOT_STARTED
+        ),
+    }
+
+    return extracted, objections, emotional, completeness_count, flags
