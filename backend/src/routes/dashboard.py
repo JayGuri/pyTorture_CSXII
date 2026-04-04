@@ -246,6 +246,50 @@ async def funnel(date_from: Optional[str] = None) -> DataResponse[FunnelResponse
 async def faq_gaps(
     status: str = Query(default="pending", description="Gap status: pending, researching, resolved, dismissed"),
     limit: int = Query(default=50, ge=1, le=200),
+):
+    result = (
+        supabase.table("kb_gaps")
+        .select("*")
+        .eq("status", status)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+    return {"success": True, "data": result.data or []}
+
+
+# GET /api/dashboard/sessions/:session_id/onboarding-progress
+@router.get("/sessions/{session_id}/onboarding-progress")
+async def onboarding_progress(session_id: str):
+    """
+    Returns the onboarding Q&A status for a call session.
+    Used by the dashboard to show a live structured brief.
+    """
+    try:
+        result = (
+            supabase.table("onboarding_questions")
+            .select("question_key, question_text, status, answer, asked_at, answered_at, turn_number")
+            .eq("session_id", session_id)
+            .order("created_at")
+            .execute()
+        )
+        total    = len(result.data) if result.data else 0
+        answered = sum(1 for r in (result.data or []) if r["status"] == "answered")
+        return {
+            "success": True,
+            "session_id": session_id,
+            "questions": result.data or [],
+            "progress": {
+                "total":    total,
+                "answered": answered,
+                "pending":  total - answered,
+                "pct":      round((answered / total) * 100) if total else 0,
+            },
+        }
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
 ) -> DataResponse:
     """
     List FAQ gaps from voice calls that need research.
