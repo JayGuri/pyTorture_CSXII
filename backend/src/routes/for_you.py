@@ -104,11 +104,23 @@ async def get_for_you_dashboard(
     elif email:
         lead = ForYouService.get_lead_by_email(email)
 
+    # Create default lead if not found (for new sessions)
     if not lead:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No lead found for session_id={session_id}, email={email}",
-        )
+        logger.info(f"Creating default lead for session_id={session_id}, email={email}")
+        lead = {
+            "id": f"lead-{session_id[:8]}" if session_id else f"lead-{email.split('@')[0]}",
+            "session_id": session_id,
+            "email": email,
+            "name": email.split("@")[0] if email else "Student",
+            "target_countries": ["uk"],
+            "course_interest": None,
+            "gpa": None,
+            "ielts_score": None,
+            "budget": None,
+            "scholarship_interest": False,
+            "application_stage": "exploring",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
 
     logger.info(f"Found lead: {lead.get('id')} - {lead.get('name')}")
 
