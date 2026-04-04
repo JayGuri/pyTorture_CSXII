@@ -5,6 +5,8 @@ from typing import Any, Dict, Literal, Optional
 
 import socketio
 
+from src.utils.logger import logger
+
 # Module-level Socket.IO server instance
 _sio: Optional[socketio.AsyncServer] = None
 
@@ -84,3 +86,17 @@ async def broadcast_session_end(session_id: str, lead_data: Dict[str, Any]) -> N
         },
         room=f"session:{session_id}",
     )
+
+
+async def broadcast_onboarding_progress(session_id: str, payload: Dict[str, Any]) -> None:
+    if not _sio:
+        return
+    try:
+        await _sio.emit(
+            "onboarding_progress",
+            {"session_id": session_id, **payload},
+            room=f"session:{session_id}",
+        )
+    except Exception as exc:
+        logger.warning(f"Failed to broadcast onboarding progress | err={exc}")
+

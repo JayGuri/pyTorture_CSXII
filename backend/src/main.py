@@ -16,6 +16,7 @@ from src.routes.dashboard import router as dashboard_router
 from src.routes.leads import router as leads_router
 from src.routes.sessions import router as sessions_router
 from src.routes.health import router as health_router
+from src.routes.voice_agent import router as voice_agent_router
 from src.routes.for_you import router as for_you_router
 from src.services.stt.sarvam import close_stt_http_client
 from src.services.transcription.live_stream import set_sio
@@ -23,6 +24,7 @@ from src.cron.exchange_rates import refresh_rates
 from src.cron.visa_fees import seed_visa_data
 from src.cron.kb_gap_researcher import research_kb_gaps
 from src.cron.drift_detector import detect_drift
+from src.services.voice_agent.sentiment import get_sentiment_analyzer
 from src.utils.logger import logger
 
 # ─── APScheduler ─────────────────────────────────────────
@@ -94,6 +96,10 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(refresh_rates())
     asyncio.create_task(seed_visa_data())
 
+    # Warm up sentiment analyzer models (fire-and-forget)
+    analyzer = get_sentiment_analyzer()
+    asyncio.create_task(analyzer.warm_up())
+
     # Schedule recurring jobs
     scheduler.add_job(refresh_rates, IntervalTrigger(hours=6), id="exchange_rates")
     scheduler.add_job(seed_visa_data, CronTrigger(day_of_week="mon", hour=9), id="visa_fees")
@@ -140,6 +146,7 @@ app.include_router(dashboard_router)
 app.include_router(leads_router)
 app.include_router(sessions_router)
 app.include_router(health_router)
+app.include_router(voice_agent_router)
 app.include_router(for_you_router)
 
 
