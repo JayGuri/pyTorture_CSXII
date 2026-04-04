@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import "./App.css";
+import VoiceAgent from './components/forYou/VoiceAgent';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
@@ -31,6 +32,8 @@ function App() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [summaryBusy, setSummaryBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [voiceAgentOpen, setVoiceAgentOpen] = useState(false);
+  const sessionId = useRef(typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2, 11)).current;
 
   const selectedCall = useMemo(
     () => calls.find((item) => item.call_sid === selectedCallSid) || null,
@@ -351,6 +354,24 @@ function App() {
           )}
         </main>
       </div>
+
+      {/* Voice Agent Modal */}
+      <VoiceAgent
+        sessionId={sessionId}
+        open={voiceAgentOpen}
+        onClose={() => setVoiceAgentOpen(false)}
+      />
+
+      {/* Voice Agent Floating Button */}
+      <button
+        className="voice-agent-fab"
+        onClick={() => setVoiceAgentOpen(true)}
+        type="button"
+        title="Open Voice Assistant"
+        aria-label="Open Voice Assistant"
+      >
+        🎤
+      </button>
     </div>
   );
 }
