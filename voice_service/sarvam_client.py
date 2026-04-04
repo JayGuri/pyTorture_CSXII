@@ -67,6 +67,32 @@ class SarvamClient:
 
         return ""
 
+    def _post_chat_with_fallback(self, payload: dict[str, Any]) -> dict[str, Any]:
+        headers = {
+            **self._auth_headers(),
+            "Content-Type": "application/json",
+        }
+
+        last_error = ""
+        for endpoint in self.CHAT_ENDPOINTS:
+            try:
+                response = requests.post(
+                    endpoint,
+                    json=payload,
+                    headers=headers,
+                    timeout=self.settings.http_timeout_sec,
+                )
+                response.raise_for_status()
+                data = response.json()
+                if isinstance(data, dict):
+                    return data
+            except requests.RequestException as exc:
+                last_error = str(exc)
+
+        if last_error:
+            raise RuntimeError(f"Sarvam chat failed for all default endpoints: {last_error}")
+        return {}
+
     def transcribe_audio(self, audio_bytes: bytes, language_code: str) -> str:
         if not self.settings.sarvam_api_key:
             return ""
@@ -129,28 +155,38 @@ class SarvamClient:
             "temperature": 0.3,
         }
 
-        headers = {
-            **self._auth_headers(),
-            "Content-Type": "application/json",
+        response_payload = self._post_chat_with_fallback(payload)
+        reply = self._find_first_text(response_payload)
+        if reply:
+            return reply
+
+        return ""
+
+    def generate_call_summary(self, transcript: str, language_code: str) -> str:
+        if not self.settings.sarvam_api_key or not transcript.strip():
+            return ""
+
+        system_prompt = (
+            "You are a meeting intelligence assistant for a study-abroad counselling call. "
+            "Return STRICT JSON only. Do not include markdown. "
+            "Include fields: title, overview, key_points (array), next_steps (array), "
+            "action_items (array of objects with owner/task/priority), risks (array), and suggested_follow_up."
+        )
+
+        user_prompt = (
+            f"Call language: {language_code}.\n"
+            "Analyze this conversation transcript and produce a concise but actionable summary for counsellors and students.\n\n"
+            f"Transcript:\n{transcript}"
+        )
+
+        payload = {
+            "model": self.CHAT_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.2,
         }
 
-        last_error = ""
-        for endpoint in self.CHAT_ENDPOINTS:
-            try:
-                response = requests.post(
-                    endpoint,
-                    json=payload,
-                    headers=headers,
-                    timeout=self.settings.http_timeout_sec,
-                )
-                response.raise_for_status()
-                response_payload = response.json()
-                reply = self._find_first_text(response_payload)
-                if reply:
-                    return reply
-            except requests.RequestException as exc:
-                last_error = str(exc)
-
-        if last_error:
-            raise RuntimeError(f"Sarvam chat failed for all default endpoints: {last_error}")
-        return ""
+        response_payload = self._post_chat_with_fallback(payload)
+        return self._find_first_text(response_payload)
