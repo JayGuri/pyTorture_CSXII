@@ -1,29 +1,34 @@
 /**
- * Live FX via Frankfurter through allorigins CORS proxy (free, no auth needed).
+ * Live FX via Frankfurter (ECB-based reference rates).
  * https://www.frankfurter.app/
+ *
+ * The legacy host api.frankfurter.app now 301-redirects to api.frankfurter.dev/v1.
+ * Browser fetch + third-party CORS proxies often broke on that redirect (empty or
+ * non-JSON `contents`). The new API serves JSON with Access-Control-Allow-Origin: *,
+ * so we call it directly—no proxy.
  */
+const FRANKFURT_BASE = "https://api.frankfurter.dev/v1";
 
-const FRANKFURT_BASE = "https://api.frankfurter.app";
-const CORS_PROXY = "https://api.allorigins.win/get";
+function parseFrankfurterBody(data) {
+  const rate = data?.rates?.INR;
+  if (typeof rate !== "number" || !Number.isFinite(rate)) {
+    throw new Error("Unexpected FX response format");
+  }
+  return { inrPerUnit: rate, date: data.date || null, source: "frankfurter" };
+}
 
 export async function fetchInrPerUnit(currencyCode, signal) {
   const code = String(currencyCode || "EUR").toUpperCase();
   if (code === "INR") return { inrPerUnit: 1, date: null, source: "frankfurter" };
 
-  const frankfurterUrl = `${FRANKFURT_BASE}/latest?from=${encodeURIComponent(code)}&to=INR`;
-  const url = `${CORS_PROXY}?url=${encodeURIComponent(frankfurterUrl)}`;
+  const url = `${FRANKFURT_BASE}/latest?from=${encodeURIComponent(code)}&to=INR`;
   try {
     const res = await fetch(url, { signal });
     if (!res.ok) {
       throw new Error(`FX request failed (${res.status})`);
     }
     const data = await res.json();
-    const parsedData = JSON.parse(data.contents);
-    const rate = parsedData?.rates?.INR;
-    if (typeof rate !== "number" || !Number.isFinite(rate)) {
-      throw new Error("Unexpected FX response format");
-    }
-    return { inrPerUnit: rate, date: parsedData.date || null, source: "frankfurter" };
+    return parseFrankfurterBody(data);
   } catch (e) {
     console.error(`[exchangeRates] fetchInrPerUnit(${code}) failed:`, e);
     throw e;
@@ -31,30 +36,27 @@ export async function fetchInrPerUnit(currencyCode, signal) {
 }
 
 /**
- * Single snapshot: how many INR for 1 EUR and 1 GBP (for dashboard display).
- * Uses CORS proxy to access Frankfurter without needing a backend.
+ * Single snapshot: INR per 1 EUR and 1 GBP (For You budget block).
  */
 export async function fetchEurGbpInrSpot(signal) {
   try {
-    const eurFrankfurterUrl = `${FRANKFURT_BASE}/latest?from=EUR&to=INR`;
-    const gbpFrankfurterUrl = `${FRANKFURT_BASE}/latest?from=GBP&to=INR`;
+    const eurUrl = `${FRANKFURT_BASE}/latest?from=EUR&to=INR`;
+    const gbpUrl = `${FRANKFURT_BASE}/latest?from=GBP&to=INR`;
 
     const [eurRes, gbpRes] = await Promise.all([
-      fetch(`${CORS_PROXY}?url=${encodeURIComponent(eurFrankfurterUrl)}`, { signal }),
-      fetch(`${CORS_PROXY}?url=${encodeURIComponent(gbpFrankfurterUrl)}`, { signal }),
+      fetch(eurUrl, { signal }),
+      fetch(gbpUrl, { signal }),
     ]);
 
     if (!eurRes.ok || !gbpRes.ok) {
       const eurStatus = eurRes.ok ? "" : `EUR: ${eurRes.status}`;
       const gbpStatus = gbpRes.ok ? "" : `GBP: ${gbpRes.status}`;
-      throw new Error(`Exchange rate service unavailable. ${[eurStatus, gbpStatus].filter(Boolean).join(", ")}`);
+      throw new Error(
+        `Exchange rate service unavailable. ${[eurStatus, gbpStatus].filter(Boolean).join(", ")}`,
+      );
     }
 
-    const eurProxyRes = await eurRes.json();
-    const gbpProxyRes = await gbpRes.json();
-
-    const eurData = JSON.parse(eurProxyRes.contents);
-    const gbpData = JSON.parse(gbpProxyRes.contents);
+    const [eurData, gbpData] = await Promise.all([eurRes.json(), gbpRes.json()]);
 
     const eurInr = eurData?.rates?.INR;
     const gbpInr = gbpData?.rates?.INR;

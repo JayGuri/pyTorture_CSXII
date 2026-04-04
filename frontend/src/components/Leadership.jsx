@@ -10,7 +10,7 @@ const LEADERS = [
   {
     name: "Binti Kochar",
     role: "Co-Founder & Operations Head",
-    bio: "Co-founded Fateh almost two decades ago and built the company from a 2-member team to over 200 members. She oversees day-to-day operations with a never-say-die attitude, and is an expert IELTS trainer and qualified interior designer — a rare blend of analytical rigour and creative vision.",
+    bio: "Co-founded Fateh almost two decades ago and built the company from a two-person team to over 200 people. She runs operations with a never-say-die attitude, and is both an expert IELTS trainer and a qualified interior designer: analytical rigour with creative vision.",
   },
 ];
 
@@ -32,7 +32,7 @@ const Leadership = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              className="border border-fateh-border p-10"
+              className="rounded-2xl border border-fateh-border/90 bg-white/40 p-9 shadow-[0_18px_45px_-22px_rgba(11,14,26,0.12)] ring-1 ring-fateh-ink/[0.03] transition hover:shadow-[0_22px_50px_-20px_rgba(11,14,26,0.16)] md:p-10"
             >
               <h3 className="font-fateh-serif text-2xl font-semibold text-fateh-ink normal-case">
                 {l.name}

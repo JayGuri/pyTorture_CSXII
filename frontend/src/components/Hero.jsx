@@ -102,7 +102,7 @@ const Hero = () => {
           transition={{ duration: 0.6, delay: 0.5 }}
           className="mt-6 max-w-[38ch] text-base font-light leading-[1.85] text-white/55"
         >
-          Expert admission guidance led by an IIM Calcutta alumnus — from university selection to your
+          Expert admission guidance led by an IIM Calcutta alumnus, from university selection to your
           first day on campus and beyond.
         </motion.p>
 
@@ -149,14 +149,14 @@ const Hero = () => {
           <button
             type="button"
             onClick={() => scrollTo("register")}
-            className="rounded-sm bg-fateh-gold px-8 py-3.5 text-[0.82rem] font-medium uppercase tracking-[0.09em] text-fateh-ink transition hover:bg-fateh-gold-light"
+            className="rounded-lg bg-fateh-gold px-8 py-3.5 text-[0.82rem] font-medium uppercase tracking-[0.09em] text-fateh-ink shadow-md shadow-fateh-gold/15 transition hover:bg-fateh-gold-light"
           >
             Book Free Counselling
           </button>
           <button
             type="button"
             onClick={() => scrollTo("universities")}
-            className="rounded-sm border border-white/25 px-8 py-3.5 text-[0.82rem] uppercase tracking-[0.09em] text-white/80 transition hover:border-fateh-gold hover:text-fateh-gold"
+            className="rounded-lg border border-white/25 px-8 py-3.5 text-[0.82rem] uppercase tracking-[0.09em] text-white/80 transition hover:border-fateh-gold hover:text-fateh-gold hover:shadow-md hover:shadow-fateh-gold/10"
           >
             Explore Universities
           </button>
