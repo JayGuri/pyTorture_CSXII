@@ -33,6 +33,17 @@ export default function AskFatehModal({ open, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const prev = document.body.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+      document.documentElement.style.overflow = "";
+    };
+  }, [open]);
+
   async function send() {
     const text = input.trim();
     if (!text || loading) return;
@@ -71,7 +82,7 @@ export default function AskFatehModal({ open, onClose }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-80 bg-fateh-ink/55 backdrop-blur-sm"
+            className="fixed inset-0 z-[600] bg-fateh-ink/55 backdrop-blur-sm"
             onClick={onClose}
           />
           <motion.div
@@ -82,7 +93,7 @@ export default function AskFatehModal({ open, onClose }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed left-1/2 top-1/2 z-90 flex max-h-[min(560px,85vh)] w-[min(440px,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-fateh-gold/25 bg-fateh-paper shadow-[0_32px_100px_-24px_rgba(11,14,26,0.45)]"
+            className="fixed left-1/2 top-1/2 z-[610] flex max-h-[min(560px,85vh)] w-[min(440px,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-fateh-gold/25 bg-fateh-paper shadow-[0_32px_100px_-24px_rgba(11,14,26,0.45)]"
           >
             <div className="flex items-center justify-between border-b border-fateh-border/90 bg-fateh-ink px-5 py-4 text-fateh-paper">
               <div className="flex items-center gap-3">
