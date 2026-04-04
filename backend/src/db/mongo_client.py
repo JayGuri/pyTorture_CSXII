@@ -28,7 +28,18 @@ async def connect_db() -> None:
     _db = _client[_resolve_database_name(env.MONGODB_URI)]
 
     await _db.command("ping")
-    await _db.callers.create_index("phone", unique=True)
+
+    # Fresh start: drop old collection so we don't have ObjectId _id docs
+    try:
+        existing_doc = await _db.callers.find_one()
+        if existing_doc and not isinstance(existing_doc.get("_id"), str):
+            logger.warning("Detected old ObjectId-based _id documents — dropping callers collection for fresh start")
+            await _db.callers.drop()
+    except Exception as exc:
+        logger.warning(f"Collection migration check failed, continuing | err={repr(exc)}")
+
+    # _id is now the phone number, so phone index is redundant
+    # but we keep classification/score/contact indexes for dashboard queries
     await _db.callers.create_index("classification")
     await _db.callers.create_index("lead_score")
     await _db.callers.create_index("last_contact")

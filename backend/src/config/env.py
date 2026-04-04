@@ -36,8 +36,9 @@ class Settings(BaseSettings):
     GEMINI_QUOTA_COOLDOWN_SEC: int = Field(default=30)
 
     SARVAM_API_KEY: str = Field(default="")
+    SARVAM_API_KEY_FALLBACK: str = Field(default="")
     SARVAM_TTS_URL: str = Field(default="https://api.sarvam.ai/text-to-speech")
-    SARVAM_TTS_MODEL: str = Field(default="bulbul:v3")
+    SARVAM_TTS_MODEL: str = Field(default="bulbul:v2")
     SARVAM_TTS_DEFAULT_SPEAKER: str = Field(default="priya")
     SARVAM_TTS_MAX_CHARS: int = Field(default=500)
 
@@ -53,6 +54,11 @@ class Settings(BaseSettings):
     WEBHOOK_RECORDING_DOWNLOAD_TIMEOUT_SEC: float = Field(default=10.0)
     GROQ_STT_TIMEOUT_SEC: float = Field(default=10.0)
     SARVAM_TTS_TIMEOUT_SEC: float = Field(default=10.0)
+    TWILIO_WEBHOOK_FAST_DEADLINE_MODE: bool = Field(default=True)
+    WEBHOOK_INTERNAL_BUDGET_SEC: float = Field(default=13.5)
+    WEBHOOK_MIN_TTS_BUDGET_SEC: float = Field(default=1.0)
+    WEBHOOK_TTS_BUDGET_GUARD_SEC: float = Field(default=0.35)
+    WEBHOOK_MIN_ORCHESTRATOR_BUDGET_SEC: float = Field(default=0.75)
     TWILIO_RECORDING_DEDUPE_TTL_SEC: int = Field(default=600)
     TTS_CACHE_TTL_SEC: int = Field(default=60)
 

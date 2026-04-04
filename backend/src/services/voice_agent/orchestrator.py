@@ -4,7 +4,12 @@ from typing import Any, Dict, List, Tuple
 
 from src.db.mongo_client import get_db
 from src.services.llm.gemini import generate_reply
-from src.services.voice_agent.extractor import extract_updates
+from src.services.voice_agent.extractor import (
+    build_extraction_prompt,
+    extract_updates,
+    merge_extractions,
+    parse_llm_extraction,
+)
 from src.services.voice_agent.memory import build_context_for_llm, load_memory, save_turn
 from src.services.voice_agent.prompt_builder import build_system_prompt
 from src.services.voice_agent.scorer import score_lead
@@ -16,6 +21,22 @@ FALLBACK_REPLIES = {
     "hi-IN": "Maaf kijiye, thoda issue ho gaya tha. Kya aap ek baar phir bata sakte hain?",
     "mr-IN": "Maaf kara, thoda issue zala hota. Krupaya ekda punha sanga shakal ka?",
 }
+
+
+async def _llm_extract(transcript: str, ai_reply: str, existing_doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Use Gemini to extract structured fields from the conversation turn."""
+    prompt = build_extraction_prompt(transcript, ai_reply, existing_doc)
+    if not prompt:
+        return {}
+
+    try:
+        raw = await generate_reply(prompt, [{"role": "user", "content": "Extract the fields."}])
+        if not raw:
+            return {}
+        return parse_llm_extraction(raw)
+    except Exception as exc:
+        logger.warning(f"LLM extraction failed (non-critical) | err={repr(exc)}")
+        return {}
 
 
 async def process_turn(
@@ -33,15 +54,15 @@ async def process_turn(
     try:
         db = get_db()
         if not current_doc:
-            current_doc = await db.callers.find_one({"phone": phone}) or {}
+            current_doc = await db.callers.find_one({"_id": phone}) or {}
     except Exception as exc:
-        logger.error(f"Failed to load caller from MongoDB | phone={phone} err={exc}")
+        logger.error(f"Failed to load caller from MongoDB | phone={phone} err={repr(exc)}")
 
     try:
         memory = await load_memory(phone)
         context_messages = build_context_for_llm(memory, call_history)
     except Exception as exc:
-        logger.error(f"Failed to build memory context | phone={phone} err={exc}")
+        logger.error(f"Failed to build memory context | phone={phone} err={repr(exc)}")
         memory = {
             "messages": [],
             "summary": None,
@@ -64,7 +85,14 @@ async def process_turn(
     merged_doc = dict(current_doc)
 
     try:
-        extracted_updates = extract_updates(transcript, current_doc)
+        # Step 1: Fast regex extraction
+        regex_updates = extract_updates(transcript, current_doc)
+
+        # Step 2: LLM-powered extraction (uses transcript + AI reply for richer context)
+        llm_updates = await _llm_extract(transcript, reply, current_doc)
+
+        # Step 3: Merge — LLM takes priority for complex fields
+        extracted_updates = merge_extractions(regex_updates, llm_updates)
         merged_doc.update(extracted_updates)
 
         score_updates = score_lead(merged_doc)
@@ -75,7 +103,7 @@ async def process_turn(
 
         if db is not None and phone:
             await db.callers.update_one(
-                {"phone": phone},
+                {"_id": phone},
                 {
                     "$set": {
                         **extracted_updates,
@@ -101,7 +129,7 @@ async def process_turn(
             f"new_fields={list(extracted_updates.keys())} score={merged_doc.get('lead_score', 0)}"
         )
     except Exception as exc:
-        logger.error(f"Post-reply caller update failed | phone={phone} call_sid={call_sid} err={exc}")
+        logger.error(f"Post-reply caller update failed | phone={phone} call_sid={call_sid} err={repr(exc)}")
 
     return reply, merged_doc
 
@@ -125,4 +153,6 @@ def _detect_topics(transcript: str) -> List[str]:
         topics.append("ireland")
     if any(word in lower_text for word in ["work", "part-time", "graduate route", "stamp 1g", "psw"]):
         topics.append("post_study_work")
+    if any(word in lower_text for word in ["counselling", "counsellor", "session", "appointment", "meeting"]):
+        topics.append("counselling_session")
     return topics

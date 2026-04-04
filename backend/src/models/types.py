@@ -8,6 +8,7 @@ LeadClassification = Literal["Hot", "Warm", "Cold"]
 TestStage = Literal["not_started", "preparing", "completed"]
 BudgetStatus = Literal["disclosed", "deferred", "not_asked"]
 CallStatus = Literal["active", "completed", "dropped", "no-answer"]
+ConSessionStatus = Literal["none", "approved", "denied", "in_process"]
 
 
 @dataclass

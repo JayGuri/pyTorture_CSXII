@@ -20,7 +20,7 @@ def _map_language(language_code: str) -> str:
 
 async def download_twilio_recording(recording_url: str) -> bytes:
     url = recording_url if recording_url.endswith(".wav") else f"{recording_url}.wav"
-    timeout = httpx.Timeout(min(env.WEBHOOK_RECORDING_DOWNLOAD_TIMEOUT_SEC, 6.0))
+    timeout = httpx.Timeout(min(env.WEBHOOK_RECORDING_DOWNLOAD_TIMEOUT_SEC, 5.0))
 
     t0 = time.monotonic()
     async with httpx.AsyncClient(timeout=timeout, auth=(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN)) as client:
@@ -32,7 +32,7 @@ async def download_twilio_recording(recording_url: str) -> bytes:
 
 
 async def transcribe_audio(audio_bytes: bytes, language_code: str) -> str:
-    timeout = httpx.Timeout(min(env.GROQ_STT_TIMEOUT_SEC, 6.0))
+    timeout = httpx.Timeout(min(env.GROQ_STT_TIMEOUT_SEC, 5.0))
 
     t0 = time.monotonic()
     try:

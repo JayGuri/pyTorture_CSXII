@@ -137,9 +137,10 @@ GEMINI_QUOTA_COOLDOWN_SEC=90
 
 # TTS
 SARVAM_API_KEY=your_sarvam_api_key
+SARVAM_API_KEY_FALLBACK=your_optional_backup_sarvam_key
 SARVAM_TTS_URL=https://api.sarvam.ai/text-to-speech
-SARVAM_TTS_MODEL=saaras:v3
-SARVAM_TTS_DEFAULT_SPEAKER=meera
+SARVAM_TTS_MODEL=bulbul:v3
+SARVAM_TTS_DEFAULT_SPEAKER=priya
 SARVAM_TTS_MAX_CHARS=500
 
 # MongoDB
@@ -151,6 +152,14 @@ MAX_CONTEXT_MESSAGES=20
 CONTEXT_SUMMARY_THRESHOLD=16
 ORCHESTRATOR_TIMEOUT_SEC=8.0
 STT_REPROMPT_LIMIT=2
+WEBHOOK_RECORDING_DOWNLOAD_TIMEOUT_SEC=5.0
+GROQ_STT_TIMEOUT_SEC=5.0
+SARVAM_TTS_TIMEOUT_SEC=5.0
+TWILIO_WEBHOOK_FAST_DEADLINE_MODE=true
+WEBHOOK_INTERNAL_BUDGET_SEC=13.5
+WEBHOOK_MIN_TTS_BUDGET_SEC=1.0
+WEBHOOK_TTS_BUDGET_GUARD_SEC=0.35
+WEBHOOK_MIN_ORCHESTRATOR_BUDGET_SEC=0.75
 ```
 
 ## Run Locally
@@ -303,6 +312,8 @@ If Sarvam fails, the backend falls back to Twilio `<Say>`.
 - LLM timeout or failure: use a safe fallback spoken reply
 - LLM quota exhaustion: enter cooldown and continue call with static fallback replies
 - TTS failure: fall back to Twilio `<Say>`
+- Twilio webhook deadline mode: preserves an internal time budget and falls back early to `<Say>` when budget is low, so Twilio gets TwiML before the 15s timeout
+- In fast deadline mode, Sarvam TTS limits retries in webhook context to reduce timeout risk
 - MongoDB write failure: log and continue call where possible
 - Twilio duplicate recording callbacks are deduplicated in memory
 

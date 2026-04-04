@@ -3,16 +3,16 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 MISSING_FIELD_QUESTIONS = {
-    "target_countries": "Which country are you thinking of for study, UK or Ireland?",
+    "name": "May I know your name so I can guide you better?",
+    "location": "Which city are you calling from?",
     "education_level": "Are you finishing your bachelor's, or have you already graduated?",
+    "field": "What is your academic background, like engineering, business, or science?",
+    "target_countries": "Which country are you thinking of for study, UK or Ireland?",
     "course_interest": "Which course or subject are you planning to study?",
     "test_score": "Have you taken IELTS or PTE yet, or are you still preparing?",
     "budget_range": "What budget are you roughly planning for your total study cost?",
     "intake_timing": "Are you targeting September 2025 or January 2026 intake?",
     "scholarship_interest": "Would you like me to keep scholarships in mind as well?",
-    "name": "May I know your name so I can guide you better?",
-    "location": "Which city are you calling from?",
-    "field": "What is your academic background, like engineering, business, or science?",
 }
 
 LANGUAGE_INSTRUCTIONS = {
@@ -26,6 +26,29 @@ LANGUAGE_INSTRUCTIONS = {
         "city names, country names, and numbers in English."
     ),
 }
+
+# Fields in priority order for onboarding — the LLM will naturally ask about these
+_ONBOARDING_PRIORITY = [
+    "name",
+    "location",
+    "education_level",
+    "field",
+    "target_countries",
+    "course_interest",
+    "test_score",
+    "budget_range",
+    "intake_timing",
+]
+
+
+def _build_null_fields_list(caller_doc: Dict[str, Any]) -> List[str]:
+    """Return list of field names that are still null/empty."""
+    null_fields = []
+    for field in _ONBOARDING_PRIORITY:
+        value = caller_doc.get(field)
+        if not value or value == []:
+            null_fields.append(field)
+    return null_fields
 
 
 def build_system_prompt(
@@ -57,6 +80,10 @@ def build_system_prompt(
         profile_lines.append(f"Budget: {caller_doc['budget_range']}")
     if caller_doc.get("intake_timing"):
         profile_lines.append(f"Intake: {caller_doc['intake_timing']}")
+    if caller_doc.get("next_con_session"):
+        profile_lines.append(f"Next Counselling Session: {caller_doc['next_con_session']}")
+    if caller_doc.get("con_session_req") and caller_doc["con_session_req"] != "none":
+        profile_lines.append(f"Session Request Status: {caller_doc['con_session_req']}")
 
     if profile_lines:
         profile_section = "CALLER PROFILE (already known, do not re-ask):\n" + "\n".join(
@@ -65,21 +92,20 @@ def build_system_prompt(
     else:
         profile_section = "CALLER PROFILE: New caller with no confirmed background details yet."
 
-    priority_fields = [
-        "target_countries",
-        "education_level",
-        "course_interest",
-        "test_score",
-        "budget_range",
-        "intake_timing",
-        "name",
-    ]
-    next_question = None
-    for field in priority_fields:
-        value = caller_doc.get(field)
-        if not value or value == []:
-            next_question = MISSING_FIELD_QUESTIONS.get(field)
-            break
+    # Build the list of missing fields so LLM knows what to collect
+    null_fields = _build_null_fields_list(caller_doc)
+    if null_fields:
+        missing_questions = []
+        for field in null_fields[:3]:  # Show top 3 missing fields
+            q = MISSING_FIELD_QUESTIONS.get(field)
+            if q:
+                missing_questions.append(f"  - {field}: {q}")
+        missing_section = (
+            "MISSING INFORMATION (you MUST naturally weave ONE of these into your reply):\n"
+            + "\n".join(missing_questions)
+        )
+    else:
+        missing_section = "All key fields are already known. Focus on guidance, reassurance, and next steps."
 
     caller_mode = (
         "RETURNING CALLER MODE:\n"
@@ -93,16 +119,11 @@ def build_system_prompt(
         "- This is the student's first meaningful call.\n"
         "- Introduce yourself briefly as Priya from Fateh Education.\n"
         "- Focus on light onboarding and trust-building.\n"
-        "- Ask only one natural next question in the reply."
+        "- Your MAIN JOB is to collect the student's basic info naturally through conversation.\n"
+        "- Ask only one natural question per reply to fill in the missing fields below."
     )
 
     recent_topics = ", ".join(topics_discussed[-5:]) if topics_discussed else "none yet"
-    next_question_section = (
-        f"SUGGESTED NEXT QUESTION: {next_question}"
-        if next_question
-        else "All key fields are already known. Focus on guidance, reassurance, and next steps."
-    )
-
     language_instruction = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["en-IN"])
 
     return f"""You are Priya Sharma, a warm and highly capable overseas education counsellor from Fateh Education helping Indian students study in the UK and Ireland.
@@ -112,7 +133,7 @@ VOICE CALL RULES:
 - Keep every response between 60 and 90 words.
 - No bullet points, markdown, labels, or stage directions.
 - Sound warm, confident, and practical.
-- End with exactly one natural question.
+- End with exactly one natural question to collect missing information.
 - If you are unsure of a precise fee, deadline, or rule, say you will note it for the counsellor instead of guessing.
 
 {caller_mode}
@@ -122,10 +143,22 @@ LANGUAGE RULE:
 
 {profile_section}
 
+{missing_section}
+
 RECENT TOPICS ALREADY COVERED:
 {recent_topics}
 
-{next_question_section}
+COUNSELLING SESSION AWARENESS:
+- If the student asks to schedule a counselling session with a human expert, help them set a date and time.
+- Confirm the date and time clearly (e.g., "I'll note down your session for the 15th of April at 3 PM").
+- If a session is already scheduled, remind them about it.
+- If they want to cancel or reschedule, acknowledge it warmly.
+
+DATA COLLECTION STRATEGY:
+- Be slick and natural about collecting information. Don't interrogate.
+- Weave questions into genuine advice. For example: "To suggest the best universities, could you tell me which city you're based in?"
+- After getting an answer, acknowledge it warmly before moving to the next topic.
+- Prioritize getting the student's name and location early — it builds trust.
 
 COUNSELLING KNOWLEDGE:
 - UK tuition is often around GBP 15,000 to 35,000 per year.

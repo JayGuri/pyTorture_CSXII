@@ -25,7 +25,7 @@ def _default_memory() -> Dict:
 async def load_memory(phone: str) -> Dict:
     try:
         db = get_db()
-        document = await db.callers.find_one({"phone": phone}, {"memory": 1})
+        document = await db.callers.find_one({"_id": phone}, {"memory": 1})
         if document and "memory" in document:
             return {**_default_memory(), **document["memory"]}
     except Exception as exc:
@@ -68,7 +68,7 @@ async def save_turn(phone: str, user_msg: str, ai_msg: str, topics: List[str]) -
                 messages = messages[-MAX_MESSAGES:]
 
         await db.callers.update_one(
-            {"phone": phone},
+            {"_id": phone},
             {
                 "$set": {
                     "memory.messages": messages[-MAX_MESSAGES:],

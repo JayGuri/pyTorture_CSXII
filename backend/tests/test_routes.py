@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import time
 from unittest.mock import AsyncMock, patch
 
 from src.models.types import ACTIVE_CALLS, get_or_create_state
@@ -100,3 +102,52 @@ def test_process_turn_falls_back_to_say_when_tts_fails(client):
     assert response.status_code == 200
     assert "<Say" in response.text
     assert "Fallback test reply" in response.text
+
+
+def test_reply_with_audio_skips_tts_when_budget_is_low():
+    async def _run_test():
+        with patch("src.routes.twilio_webhook.synthesize_speech", new=AsyncMock(return_value=b"audio")) as tts_mock:
+            response = await twilio_module._reply_with_audio_or_say(
+                call_sid="CA_LOW_BUDGET",
+                reply="Budget fallback reply",
+                language="en-IN",
+                continue_call=True,
+                deadline_monotonic=time.monotonic() + 0.01,
+            )
+
+            assert b"<Say" in response.body
+            assert b"Budget fallback reply" in response.body
+            tts_mock.assert_not_awaited()
+
+    asyncio.run(_run_test())
+
+
+def test_process_turn_skips_orchestrator_when_budget_too_low(client):
+    ACTIVE_CALLS.clear()
+    twilio_module.PROCESSED_RECORDINGS.clear()
+
+    with (
+        patch("src.routes.twilio_webhook.download_twilio_recording", new=AsyncMock(return_value=b"wav-bytes")),
+        patch("src.routes.twilio_webhook.transcribe_audio", new=AsyncMock(return_value="Need help with admissions")),
+        patch("src.routes.twilio_webhook.process_turn", new=AsyncMock(return_value=("Should not be used", {}))) as orchestrator_mock,
+        patch("src.routes.twilio_webhook._update_call_record", new=AsyncMock()),
+        patch("src.routes.twilio_webhook.synthesize_speech", new=AsyncMock(side_effect=RuntimeError("Use Polly fallback"))),
+        patch.object(twilio_module.env, "TWILIO_WEBHOOK_FAST_DEADLINE_MODE", True),
+        patch.object(twilio_module.env, "WEBHOOK_INTERNAL_BUDGET_SEC", 1.0),
+        patch.object(twilio_module.env, "WEBHOOK_MIN_TTS_BUDGET_SEC", 1.0),
+        patch.object(twilio_module.env, "WEBHOOK_MIN_ORCHESTRATOR_BUDGET_SEC", 5.0),
+    ):
+        response = client.post(
+            "/webhooks/twilio/process-turn?lang=en-IN",
+            data={
+                "CallSid": "CA901",
+                "From": "+919876543210",
+                "RecordingUrl": "https://example.test/recording",
+                "RecordingSid": "RE901",
+            },
+        )
+
+    assert response.status_code == 200
+    assert "<Say" in response.text
+    assert "Thanks, I have noted that." in response.text
+    orchestrator_mock.assert_not_awaited()

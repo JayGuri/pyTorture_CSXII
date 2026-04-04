@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from src.models.types import BudgetStatus, CallStatus, Language, LeadClassification, TestStage
+from src.models.types import BudgetStatus, CallStatus, ConSessionStatus, Language, LeadClassification, TestStage
 
 
 class MemoryMessage(BaseModel):
@@ -32,6 +32,7 @@ class CallRecord(BaseModel):
 
 
 class CallerDocument(BaseModel):
+    id: str = Field(..., alias="_id")  # _id = phone number
     phone: str
     name: Optional[str] = None
     email: Optional[str] = None
@@ -61,6 +62,9 @@ class CallerDocument(BaseModel):
     competitor_mentioned: bool = False
     ielts_upsell_flag: bool = False
 
+    next_con_session: Optional[str] = None  # ddmmyy/HH:MM format
+    con_session_req: ConSessionStatus = "none"
+
     memory: CallerMemory = Field(default_factory=CallerMemory)
     calls: List[CallRecord] = Field(default_factory=list)
 
@@ -68,9 +72,13 @@ class CallerDocument(BaseModel):
     last_contact: str
     updated_at: str
 
+    class Config:
+        populate_by_name = True
+
 
 def build_new_caller_document(phone: str, call_sid: str, now: str) -> dict:
     document = CallerDocument(
+        _id=phone,
         phone=phone,
         first_contact=now,
         last_contact=now,
@@ -82,4 +90,4 @@ def build_new_caller_document(phone: str, call_sid: str, now: str) -> dict:
             )
         ],
     )
-    return document.model_dump(mode="python")
+    return document.model_dump(mode="python", by_alias=True)

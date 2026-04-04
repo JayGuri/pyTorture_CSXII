@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
 import re
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
+
+from src.utils.logger import logger
 
 
+# ── Regex-based fast extraction (runs always, zero latency) ─────────────
 def extract_updates(transcript: str, existing: Dict[str, Any]) -> Dict[str, Any]:
     text = transcript.strip()
     lower_text = text.lower()
@@ -147,3 +151,169 @@ def extract_updates(transcript: str, existing: Dict[str, Any]) -> Dict[str, Any]
         updates["ielts_upsell_flag"] = True
 
     return updates
+
+
+# ── LLM-powered extraction (richer, runs after reply generation) ────────
+
+_EXTRACTION_FIELDS = [
+    "name", "email", "location", "education_level", "field", "institution",
+    "gpa", "target_countries", "course_interest", "intake_timing",
+    "test_type", "test_score", "test_stage", "budget_range", "budget_status",
+    "scholarship_interest", "callback_requested", "competitor_mentioned",
+    "next_con_session", "con_session_req",
+]
+
+_VALID_CON_SESSION_STATUSES = {"none", "approved", "denied", "in_process"}
+
+
+def build_extraction_prompt(transcript: str, ai_reply: str, existing_doc: Dict[str, Any]) -> str:
+    null_fields = [f for f in _EXTRACTION_FIELDS if not existing_doc.get(f) or existing_doc.get(f) == [] or existing_doc.get(f) == "not_started" or existing_doc.get(f) == "not_asked" or existing_doc.get(f) == "none"]
+
+    if not null_fields:
+        return ""
+
+    return f"""You are a data extraction assistant for an overseas education counselling service.
+Extract ONLY factual information that the student explicitly stated or confirmed in this conversation turn.
+
+STUDENT SAID: "{transcript}"
+COUNSELLOR REPLIED: "{ai_reply}"
+
+FIELDS TO EXTRACT (only if the student clearly mentioned or confirmed them):
+{json.dumps(null_fields)}
+
+FIELD RULES:
+- name: Student's full name. Title case.
+- email: Valid email address.
+- location: Indian city name. Title case.
+- education_level: "Undergraduate" or "Postgraduate".
+- field: One of: Computer Science, Data Science, Business, Engineering, Medicine, Law, Arts.
+- institution: Name of college/university.
+- gpa: Numeric GPA or percentage as a float.
+- target_countries: Array of country names (e.g. ["UK", "Ireland"]).
+- course_interest: Course name like "MSc Data Science".
+- intake_timing: Format like "September 2025" or "January 2026".
+- test_type: "IELTS", "PTE", or "TOEFL".
+- test_score: Numeric score as float.
+- test_stage: "not_started", "preparing", or "completed".
+- budget_range: Budget string like "15 Lakh INR".
+- budget_status: "disclosed" or "deferred".
+- scholarship_interest: true or false.
+- callback_requested: true if student asked for a callback.
+- competitor_mentioned: true if student mentioned a competitor.
+- next_con_session: If student mentions scheduling a counselling session, extract date/time in "ddmmyy/HH:MM" format. Use 24-hour time.
+- con_session_req: "in_process" if student requested a session, "approved" if confirmed, "denied" if declined. Leave as "none" if not discussed.
+
+Return ONLY a JSON object with the fields you extracted. Do NOT include fields where no clear info was given.
+If nothing was extractable, return an empty object: {{}}
+Return ONLY valid JSON, no explanation, no markdown.
+"""
+
+
+def parse_llm_extraction(raw: str) -> Dict[str, Any]:
+    """Parse the raw LLM output into a clean dict of extracted fields."""
+    text = raw.strip()
+    # Strip markdown code fences if present
+    if text.startswith("```"):
+        lines = text.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        # Try to find JSON in the text
+        json_match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                return {}
+        else:
+            return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    # Validate and clean extracted fields
+    clean: Dict[str, Any] = {}
+
+    if "name" in data and isinstance(data["name"], str) and data["name"].strip():
+        clean["name"] = data["name"].strip().title()
+
+    if "email" in data and isinstance(data["email"], str) and "@" in data["email"]:
+        clean["email"] = data["email"].strip().lower()
+
+    if "location" in data and isinstance(data["location"], str) and data["location"].strip():
+        clean["location"] = data["location"].strip().title()
+
+    if "education_level" in data and data["education_level"] in ("Undergraduate", "Postgraduate"):
+        clean["education_level"] = data["education_level"]
+
+    if "field" in data and data["field"] in ("Computer Science", "Data Science", "Business", "Engineering", "Medicine", "Law", "Arts"):
+        clean["field"] = data["field"]
+
+    if "institution" in data and isinstance(data["institution"], str) and data["institution"].strip():
+        clean["institution"] = data["institution"].strip()
+
+    if "gpa" in data:
+        try:
+            clean["gpa"] = float(data["gpa"])
+        except (ValueError, TypeError):
+            pass
+
+    if "target_countries" in data and isinstance(data["target_countries"], list):
+        clean["target_countries"] = [c for c in data["target_countries"] if isinstance(c, str)]
+
+    if "course_interest" in data and isinstance(data["course_interest"], str) and data["course_interest"].strip():
+        clean["course_interest"] = data["course_interest"].strip()
+
+    if "intake_timing" in data and isinstance(data["intake_timing"], str) and data["intake_timing"].strip():
+        clean["intake_timing"] = data["intake_timing"].strip()
+
+    if "test_type" in data and data["test_type"] in ("IELTS", "PTE", "TOEFL"):
+        clean["test_type"] = data["test_type"]
+
+    if "test_score" in data:
+        try:
+            clean["test_score"] = float(data["test_score"])
+            clean["test_stage"] = "completed"
+        except (ValueError, TypeError):
+            pass
+
+    if "test_stage" in data and data["test_stage"] in ("not_started", "preparing", "completed"):
+        clean["test_stage"] = data["test_stage"]
+
+    if "budget_range" in data and isinstance(data["budget_range"], str) and data["budget_range"].strip():
+        clean["budget_range"] = data["budget_range"].strip()
+        clean["budget_status"] = "disclosed"
+
+    if "budget_status" in data and data["budget_status"] in ("disclosed", "deferred"):
+        clean["budget_status"] = data["budget_status"]
+
+    if "scholarship_interest" in data and isinstance(data["scholarship_interest"], bool):
+        clean["scholarship_interest"] = data["scholarship_interest"]
+
+    if "callback_requested" in data and isinstance(data["callback_requested"], bool):
+        clean["callback_requested"] = data["callback_requested"]
+
+    if "competitor_mentioned" in data and isinstance(data["competitor_mentioned"], bool):
+        clean["competitor_mentioned"] = data["competitor_mentioned"]
+
+    if "next_con_session" in data and isinstance(data["next_con_session"], str) and data["next_con_session"].strip():
+        clean["next_con_session"] = data["next_con_session"].strip()
+
+    if "con_session_req" in data and data["con_session_req"] in _VALID_CON_SESSION_STATUSES:
+        clean["con_session_req"] = data["con_session_req"]
+
+    return clean
+
+
+def merge_extractions(regex_updates: Dict[str, Any], llm_updates: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge regex and LLM extractions. LLM takes priority for richer fields."""
+    merged = dict(regex_updates)
+    for key, value in llm_updates.items():
+        # LLM extraction overrides regex for these fields (LLM is smarter at parsing conversation)
+        if key not in merged or key in ("name", "location", "field", "course_interest", "institution",
+                                        "next_con_session", "con_session_req", "intake_timing"):
+            merged[key] = value
+    return merged

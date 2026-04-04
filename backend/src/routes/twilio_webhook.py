@@ -5,7 +5,6 @@ import time
 from typing import Dict
 
 from fastapi import APIRouter, Query, Request, Response as FastAPIResponse
-from pymongo.errors import DuplicateKeyError
 from twilio.twiml.voice_response import Gather, VoiceResponse
 
 from src.config.env import env
@@ -81,6 +80,19 @@ def _normalize_language(value: str | None) -> Language:
     return "en-IN"
 
 
+def _remaining_budget(deadline_monotonic: float | None) -> float | None:
+    if deadline_monotonic is None:
+        return None
+    return max(0.0, deadline_monotonic - time.monotonic())
+
+
+def _log_turn_stage(call_sid: str, stage: str, t_start: float, deadline_monotonic: float | None) -> None:
+    elapsed = time.monotonic() - t_start
+    remaining = _remaining_budget(deadline_monotonic)
+    remaining_str = "n/a" if remaining is None else f"{remaining:.2f}s"
+    logger.info(f"/process-turn stage={stage} call_sid={call_sid} elapsed={elapsed:.2f}s remaining={remaining_str}")
+
+
 def _twiml_response(response: VoiceResponse) -> FastAPIResponse:
     return FastAPIResponse(content=str(response), media_type="text/xml")
 
@@ -129,10 +141,11 @@ async def _upsert_caller_for_inbound_call(phone: str, call_sid: str) -> tuple[di
         "status": "active",
     }
 
-    existing = await db.callers.find_one({"phone": phone})
+    # _id is now the phone number
+    existing = await db.callers.find_one({"_id": phone})
     if existing:
         await db.callers.update_one(
-            {"phone": phone},
+            {"_id": phone},
             {
                 "$push": {"calls": call_record},
                 "$set": {
@@ -141,27 +154,12 @@ async def _upsert_caller_for_inbound_call(phone: str, call_sid: str) -> tuple[di
                 },
             },
         )
-        updated = await db.callers.find_one({"phone": phone}) or {**existing, "calls": [*existing.get("calls", []), call_record]}
+        updated = await db.callers.find_one({"_id": phone}) or {**existing, "calls": [*existing.get("calls", []), call_record]}
         return updated, True
 
     document = build_new_caller_document(phone, call_sid, now)
-    try:
-        await db.callers.insert_one(document)
-        return document, False
-    except DuplicateKeyError:
-        existing = await db.callers.find_one({"phone": phone}) or document
-        await db.callers.update_one(
-            {"phone": phone},
-            {
-                "$push": {"calls": call_record},
-                "$set": {
-                    "last_contact": now,
-                    "updated_at": now,
-                },
-            },
-        )
-        updated = await db.callers.find_one({"phone": phone}) or existing
-        return updated, True
+    await db.callers.insert_one(document)
+    return document, False
 
 
 async def _update_call_record(phone: str, call_sid: str, updates: dict) -> None:
@@ -170,11 +168,11 @@ async def _update_call_record(phone: str, call_sid: str, updates: dict) -> None:
         set_updates = {f"calls.$.{key}": value for key, value in updates.items()}
         set_updates["updated_at"] = utc_now_iso()
         await db.callers.update_one(
-            {"phone": phone, "calls.call_sid": call_sid},
+            {"_id": phone, "calls.call_sid": call_sid},
             {"$set": set_updates},
         )
     except Exception as exc:
-        logger.error(f"Failed to update call record | phone={phone} call_sid={call_sid} err={exc}")
+        logger.error(f"Failed to update call record | phone={phone} call_sid={call_sid} err={repr(exc)}")
 
 
 async def _handle_stt_failure(call_sid: str, language: Language) -> FastAPIResponse:
@@ -204,14 +202,49 @@ async def _handle_stt_failure(call_sid: str, language: Language) -> FastAPIRespo
     return _twiml_response(response)
 
 
-async def _reply_with_audio_or_say(call_sid: str, reply: str, language: Language, continue_call: bool) -> FastAPIResponse:
+async def _reply_with_audio_or_say(
+    call_sid: str,
+    reply: str,
+    language: Language,
+    continue_call: bool,
+    deadline_monotonic: float | None = None,
+) -> FastAPIResponse:
     response = VoiceResponse()
     try:
-        audio_bytes = await synthesize_speech(reply, language)
-        token = await cache_tts_audio(call_sid, audio_bytes)
-        response.play(_build_url(f"/tts/{token}"))
+        remaining = _remaining_budget(deadline_monotonic)
+        if remaining is not None and remaining <= env.WEBHOOK_MIN_TTS_BUDGET_SEC:
+            logger.warning(
+                f"Skipping Sarvam TTS due to low webhook budget | call_sid={call_sid} remaining={remaining:.2f}s"
+            )
+            _say(response, reply, language)
+        else:
+            tts_timeout = None
+            if remaining is not None:
+                tts_timeout = max(0.2, remaining - env.WEBHOOK_TTS_BUDGET_GUARD_SEC)
+
+            synthesize_kwargs = {}
+            if env.TWILIO_WEBHOOK_FAST_DEADLINE_MODE:
+                synthesize_kwargs = {
+                    "max_key_attempts": 1,
+                    "enable_speaker_fallback": bool(tts_timeout is None or tts_timeout >= 2.0),
+                    "request_timeout_sec": tts_timeout,
+                }
+
+            if tts_timeout is not None:
+                audio_bytes = await asyncio.wait_for(
+                    synthesize_speech(reply, language, **synthesize_kwargs),
+                    timeout=tts_timeout,
+                )
+            else:
+                audio_bytes = await synthesize_speech(reply, language, **synthesize_kwargs)
+
+            token = await cache_tts_audio(call_sid, audio_bytes)
+            response.play(_build_url(f"/tts/{token}"))
+    except asyncio.TimeoutError:
+        logger.error(f"Sarvam TTS timed out in webhook budget, using Polly fallback | call_sid={call_sid}")
+        _say(response, reply, language)
     except Exception as exc:
-        logger.error(f"Sarvam TTS failed | call_sid={call_sid} err={exc}")
+        logger.error(f"Sarvam TTS failed, using Polly fallback | call_sid={call_sid} err={repr(exc)}")
         _say(response, reply, language)
 
     if continue_call:
@@ -237,7 +270,7 @@ async def voice(request: Request):
         try:
             caller_doc, is_returning_caller = await _upsert_caller_for_inbound_call(phone, call_sid)
         except Exception as exc:
-            logger.error(f"Failed to upsert caller on inbound call | phone={phone} call_sid={call_sid} err={exc}")
+            logger.error(f"Failed to upsert caller on inbound call | phone={phone} call_sid={call_sid} err={repr(exc)}")
             caller_doc = build_new_caller_document(phone, call_sid, utc_now_iso())
 
         state = get_or_create_state(call_sid, phone)
@@ -261,7 +294,7 @@ async def voice(request: Request):
         response.redirect(_build_url("/webhooks/twilio/voice"), method="POST")
         return _twiml_response(response)
     except Exception as exc:
-        logger.error(f"/voice webhook failed | err={exc}")
+        logger.error(f"/voice webhook failed | err={repr(exc)}")
         response = VoiceResponse()
         _say(response, CLOSING_MESSAGE["en-IN"], "en-IN")
         response.hangup()
@@ -294,7 +327,7 @@ async def language(request: Request):
         _append_record(response, selected_language)
         return _twiml_response(response)
     except Exception as exc:
-        logger.error(f"/language webhook failed | err={exc}")
+        logger.error(f"/language webhook failed | err={repr(exc)}")
         response = VoiceResponse()
         _say(response, CLOSING_MESSAGE["en-IN"], "en-IN")
         response.hangup()
@@ -305,6 +338,9 @@ async def language(request: Request):
 async def process_turn_webhook(request: Request, lang: str = Query(default="en-IN")):
     language = _normalize_language(lang)
     t_start = time.monotonic()
+    deadline_monotonic = None
+    if env.TWILIO_WEBHOOK_FAST_DEADLINE_MODE:
+        deadline_monotonic = t_start + max(1.0, float(env.WEBHOOK_INTERNAL_BUDGET_SEC))
 
     try:
         await validate_twilio_signature(request)
@@ -317,43 +353,96 @@ async def process_turn_webhook(request: Request, lang: str = Query(default="en-I
 
         state = ACTIVE_CALLS.get(call_sid) or get_or_create_state(call_sid, phone)
         state.language = language
+        _log_turn_stage(call_sid, "request_parsed", t_start, deadline_monotonic)
 
         if recording_sid and not _remember_recording(recording_sid):
             logger.warning(f"Duplicate Twilio recording ignored | call_sid={call_sid} recording_sid={recording_sid}")
             repeat_reply = state.last_ai_reply or NO_AUDIO[language]
-            return await _reply_with_audio_or_say(call_sid, repeat_reply, language, continue_call=True)
+            return await _reply_with_audio_or_say(
+                call_sid,
+                repeat_reply,
+                language,
+                continue_call=True,
+                deadline_monotonic=deadline_monotonic,
+            )
 
         if not recording_url:
             return await _handle_stt_failure(call_sid, language)
 
-        audio_bytes = await download_twilio_recording(recording_url)
-        transcript = await transcribe_audio(audio_bytes, language)
+        remaining = _remaining_budget(deadline_monotonic)
+        if remaining is not None and remaining <= 0.1:
+            logger.warning(f"Webhook budget exhausted before recording download | call_sid={call_sid}")
+            return await _reply_with_audio_or_say(
+                call_sid,
+                FALLBACK_REPLY[language],
+                language,
+                continue_call=True,
+                deadline_monotonic=deadline_monotonic,
+            )
+
+        if remaining is not None:
+            audio_bytes = await asyncio.wait_for(download_twilio_recording(recording_url), timeout=remaining)
+        else:
+            audio_bytes = await download_twilio_recording(recording_url)
+        _log_turn_stage(call_sid, "recording_downloaded", t_start, deadline_monotonic)
+
+        remaining = _remaining_budget(deadline_monotonic)
+        if remaining is not None and remaining <= 0.1:
+            logger.warning(f"Webhook budget exhausted before STT | call_sid={call_sid}")
+            return await _reply_with_audio_or_say(
+                call_sid,
+                FALLBACK_REPLY[language],
+                language,
+                continue_call=True,
+                deadline_monotonic=deadline_monotonic,
+            )
+
+        if remaining is not None:
+            transcript = await asyncio.wait_for(transcribe_audio(audio_bytes, language), timeout=remaining)
+        else:
+            transcript = await transcribe_audio(audio_bytes, language)
+        _log_turn_stage(call_sid, "stt_done", t_start, deadline_monotonic)
+
         if not transcript:
             return await _handle_stt_failure(call_sid, language)
 
         state.stt_failures = 0
 
+        orchestrator_timeout = float(env.ORCHESTRATOR_TIMEOUT_SEC)
+        remaining = _remaining_budget(deadline_monotonic)
+        if remaining is not None:
+            reserve_for_tts = max(env.WEBHOOK_MIN_TTS_BUDGET_SEC, env.WEBHOOK_TTS_BUDGET_GUARD_SEC)
+            orchestrator_timeout = min(orchestrator_timeout, max(0.05, remaining - reserve_for_tts))
+
         try:
-            reply, updated_caller_doc = await asyncio.wait_for(
-                process_turn(
-                    phone=state.phone,
-                    transcript=transcript,
-                    language=language,
-                    call_history=state.call_history,
-                    call_sid=call_sid,
-                    caller_doc=state.caller_doc,
-                    is_returning_caller=state.is_returning_caller,
-                ),
-                timeout=env.ORCHESTRATOR_TIMEOUT_SEC,
-            )
+            if deadline_monotonic is not None and orchestrator_timeout <= env.WEBHOOK_MIN_ORCHESTRATOR_BUDGET_SEC:
+                logger.warning(
+                    f"Skipping orchestrator due to low webhook budget | call_sid={call_sid} timeout={orchestrator_timeout:.2f}s"
+                )
+                reply = FALLBACK_REPLY[language]
+                updated_caller_doc = state.caller_doc
+            else:
+                reply, updated_caller_doc = await asyncio.wait_for(
+                    process_turn(
+                        phone=state.phone,
+                        transcript=transcript,
+                        language=language,
+                        call_history=state.call_history,
+                        call_sid=call_sid,
+                        caller_doc=state.caller_doc,
+                        is_returning_caller=state.is_returning_caller,
+                    ),
+                    timeout=orchestrator_timeout,
+                )
         except asyncio.TimeoutError:
             logger.warning(f"Orchestrator timed out | call_sid={call_sid}")
             reply = FALLBACK_REPLY[language]
             updated_caller_doc = state.caller_doc
         except Exception as exc:
-            logger.error(f"Turn orchestration failed | call_sid={call_sid} err={exc}")
+            logger.error(f"Turn orchestration failed | call_sid={call_sid} err={repr(exc)}")
             reply = FALLBACK_REPLY[language]
             updated_caller_doc = state.caller_doc
+        _log_turn_stage(call_sid, "orchestrator_done", t_start, deadline_monotonic)
 
         state.turns += 1
         state.last_ai_reply = reply
@@ -367,15 +456,21 @@ async def process_turn_webhook(request: Request, lang: str = Query(default="en-I
         if len(state.call_history) > env.MAX_CONTEXT_MESSAGES:
             state.call_history = state.call_history[-env.MAX_CONTEXT_MESSAGES:]
 
-        await _update_call_record(
-            state.phone,
-            call_sid,
-            {
-                "language": language,
-                "turns": state.turns,
-                "status": "active",
-            },
-        )
+        remaining = _remaining_budget(deadline_monotonic)
+        if remaining is None or remaining > 0.4:
+            await _update_call_record(
+                state.phone,
+                call_sid,
+                {
+                    "language": language,
+                    "turns": state.turns,
+                    "status": "active",
+                },
+            )
+        else:
+            logger.warning(
+                f"Skipping call-record update due to low webhook budget | call_sid={call_sid} remaining={remaining:.2f}s"
+            )
 
         if state.turns >= env.MAX_TURNS_PER_CALL:
             await _update_call_record(
@@ -388,12 +483,32 @@ async def process_turn_webhook(request: Request, lang: str = Query(default="en-I
                 },
             )
             remove_state(call_sid)
-            return await _reply_with_audio_or_say(call_sid, reply, language, continue_call=False)
+            response = await _reply_with_audio_or_say(
+                call_sid,
+                reply,
+                language,
+                continue_call=False,
+                deadline_monotonic=deadline_monotonic,
+            )
+            _log_turn_stage(call_sid, "twiml_return", t_start, deadline_monotonic)
+            return response
 
-        return await _reply_with_audio_or_say(call_sid, reply, language, continue_call=True)
+        response = await _reply_with_audio_or_say(
+            call_sid,
+            reply,
+            language,
+            continue_call=True,
+            deadline_monotonic=deadline_monotonic,
+        )
+        _log_turn_stage(call_sid, "twiml_return", t_start, deadline_monotonic)
+        return response
     except Exception as exc:
         elapsed = time.monotonic() - t_start
-        logger.error(f"/process-turn webhook failed | lang={language} elapsed={elapsed:.2f}s err={exc}")
+        remaining = _remaining_budget(deadline_monotonic)
+        remaining_str = "n/a" if remaining is None else f"{remaining:.2f}s"
+        logger.error(
+            f"/process-turn webhook failed | lang={language} elapsed={elapsed:.2f}s remaining={remaining_str} err={repr(exc)}"
+        )
         response = VoiceResponse()
         _say(response, FALLBACK_REPLY[language], language)
         _append_record(response, language)
@@ -436,5 +551,5 @@ async def status(request: Request):
         await _finalize_status_callback(form)
         return FastAPIResponse(status_code=200)
     except Exception as exc:
-        logger.error(f"/status webhook failed | err={exc}")
+        logger.error(f"/status webhook failed | err={repr(exc)}")
         return FastAPIResponse(status_code=200)

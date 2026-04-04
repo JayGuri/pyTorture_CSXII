@@ -25,13 +25,17 @@ SARVAM_VOICES = {
 
 # ── Validate TTS model at startup ───────────────────────────────────────
 if env.SARVAM_TTS_MODEL not in _VALID_SARVAM_MODELS:
-    _corrected_model = "bulbul:v3"
+    _corrected_model = "bulbul:v2"
     logger.warning(
         f"Invalid Sarvam TTS model configured: '{env.SARVAM_TTS_MODEL}'. "
         f"Valid options: {_VALID_SARVAM_MODELS}. Auto-correcting to '{_corrected_model}'."
     )
-    # Patch the env value so all downstream usage is correct
     env.SARVAM_TTS_MODEL = _corrected_model
+
+# ── API keys: primary + fallback ────────────────────────────────────────
+_API_KEYS = [k for k in [env.SARVAM_API_KEY, env.SARVAM_API_KEY_FALLBACK] if k]
+if not _API_KEYS:
+    logger.error("No Sarvam TTS API keys configured — TTS will always fall back to Polly")
 
 _TTS_CACHE: Dict[str, bytes] = {}
 
@@ -73,11 +77,11 @@ def _is_invalid_speaker_response(response: httpx.Response) -> bool:
     return "speaker" in body and "not recognized" in body
 
 
-async def _post_tts_request(client: httpx.AsyncClient, text: str, language_code: str, speaker: str) -> httpx.Response:
+async def _post_tts_request(client: httpx.AsyncClient, text: str, language_code: str, speaker: str, api_key: str) -> httpx.Response:
     return await client.post(
         env.SARVAM_TTS_URL,
         headers={
-            "api-subscription-key": env.SARVAM_API_KEY,
+            "api-subscription-key": api_key,
             "Content-Type": "application/json",
         },
         json={
@@ -89,46 +93,82 @@ async def _post_tts_request(client: httpx.AsyncClient, text: str, language_code:
     )
 
 
-async def synthesize_speech(text: str, language_code: str) -> bytes:
+async def synthesize_speech(
+    text: str,
+    language_code: str,
+    *,
+    max_key_attempts: int | None = None,
+    enable_speaker_fallback: bool = True,
+    request_timeout_sec: float | None = None,
+) -> bytes:
     voice = SARVAM_VOICES.get(language_code, _DEFAULT_SPEAKER)
     safe_text = _sanitize_tts_text(text, max(100, int(env.SARVAM_TTS_MAX_CHARS)))
 
+    candidate_keys = list(_API_KEYS)
+    if max_key_attempts is not None:
+        candidate_keys = candidate_keys[: max(1, int(max_key_attempts))]
+
+    if not candidate_keys:
+        raise RuntimeError("No Sarvam API keys configured")
+
+    per_request_timeout = min(env.SARVAM_TTS_TIMEOUT_SEC, 5.0)
+    if request_timeout_sec is not None:
+        per_request_timeout = max(0.2, min(per_request_timeout, float(request_timeout_sec)))
+
     t0 = time.monotonic()
-    async with httpx.AsyncClient(timeout=min(env.SARVAM_TTS_TIMEOUT_SEC, 5.0)) as client:
+    last_exc: Exception | None = None
+
+    for key_index, api_key in enumerate(candidate_keys):
+        key_label = "primary" if key_index == 0 else "fallback"
         try:
-            response = await _post_tts_request(client, safe_text, language_code, voice)
-            response.raise_for_status()
+            async with httpx.AsyncClient(timeout=per_request_timeout) as client:
+                response = await _post_tts_request(client, safe_text, language_code, voice, api_key)
+                response.raise_for_status()
+
+                payload = response.json()
+                elapsed = time.monotonic() - t0
+                encoded_audio = (payload.get("audios") or [""])[0]
+                if not encoded_audio:
+                    raise ValueError("Sarvam TTS returned empty audio")
+                audio_bytes = base64.b64decode(encoded_audio)
+                logger.info(f"Sarvam TTS OK | key={key_label} elapsed={elapsed:.2f}s size={len(audio_bytes)}B")
+                return audio_bytes
+
         except httpx.HTTPStatusError as exc:
-            if _is_invalid_speaker_response(exc.response) and voice != _FALLBACK_SPEAKER:
+            if enable_speaker_fallback and _is_invalid_speaker_response(exc.response) and voice != _FALLBACK_SPEAKER:
                 logger.warning(
-                    "Sarvam TTS speaker rejected; retrying with fallback speaker | "
-                    f"configured_speaker={voice} fallback_speaker={_FALLBACK_SPEAKER} lang={language_code}"
+                    f"Sarvam TTS speaker rejected; retrying with fallback speaker | "
+                    f"key={key_label} configured_speaker={voice} fallback_speaker={_FALLBACK_SPEAKER}"
                 )
-                retry_response = await _post_tts_request(client, safe_text, language_code, _FALLBACK_SPEAKER)
-                retry_response.raise_for_status()
-                response = retry_response
+                try:
+                    async with httpx.AsyncClient(timeout=per_request_timeout) as client2:
+                        retry_response = await _post_tts_request(client2, safe_text, language_code, _FALLBACK_SPEAKER, api_key)
+                        retry_response.raise_for_status()
+                        payload = retry_response.json()
+                        elapsed = time.monotonic() - t0
+                        encoded_audio = (payload.get("audios") or [""])[0]
+                        if not encoded_audio:
+                            raise ValueError("Sarvam TTS returned empty audio after speaker fallback")
+                        audio_bytes = base64.b64decode(encoded_audio)
+                        logger.info(f"Sarvam TTS OK (speaker fallback) | key={key_label} elapsed={elapsed:.2f}s size={len(audio_bytes)}B")
+                        return audio_bytes
+                except Exception as inner_exc:
+                    last_exc = inner_exc
+                    logger.warning(f"Sarvam TTS speaker fallback also failed | key={key_label} err={repr(inner_exc)}")
             else:
-                logger.error(
-                    "Sarvam TTS request failed | "
-                    f"status={exc.response.status_code} model={env.SARVAM_TTS_MODEL} "
-                    f"speaker={voice} lang={language_code} body={_safe_error_body(exc.response)}"
+                last_exc = exc
+                logger.warning(
+                    f"Sarvam TTS failed with key={key_label} | "
+                    f"status={exc.response.status_code} body={_safe_error_body(exc.response)}"
                 )
-                raise
         except Exception as exc:
-            logger.error(
-                f"Sarvam TTS request failed | model={env.SARVAM_TTS_MODEL} speaker={voice} err={exc}"
-            )
-            raise
+            last_exc = exc
+            logger.warning(f"Sarvam TTS failed with key={key_label} | err={repr(exc)}")
 
-        payload = response.json()
-
+    # All keys exhausted
     elapsed = time.monotonic() - t0
-    encoded_audio = (payload.get("audios") or [""])[0]
-    if not encoded_audio:
-        raise ValueError("Sarvam TTS returned empty audio")
-    audio_bytes = base64.b64decode(encoded_audio)
-    logger.info(f"Sarvam TTS OK | elapsed={elapsed:.2f}s size={len(audio_bytes)}B")
-    return audio_bytes
+    logger.error(f"Sarvam TTS all keys exhausted | elapsed={elapsed:.2f}s last_err={repr(last_exc)}")
+    raise last_exc or RuntimeError("Sarvam TTS failed with all API keys")
 
 
 async def cache_tts_audio(call_sid: str, audio_bytes: bytes) -> str:
