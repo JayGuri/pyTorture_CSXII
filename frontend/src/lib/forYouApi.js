@@ -5,9 +5,42 @@
  * lead profiles, and score calculations.
  */
 
+import { withCache, deleteCacheKey, invalidateCachePrefix } from "./apiCache.js";
+
+/**
+ * Drop cached admin/leads data after mutations or when forcing a refresh.
+ * @param {object} [opts]
+ * @param {string|null} [opts.leadId] - Also clear GET /api/leads/:id
+ * @param {boolean} [opts.overview] - Clear dashboard overview (default true)
+ * @param {boolean} [opts.liveSessions] - Clear merged + per-status session cache (default true)
+ * @param {boolean} [opts.forYou] - Clear cached For You dashboard GETs (default false)
+ */
+export function invalidateAdminApiCache(opts = {}) {
+  const { leadId = null, overview = true, liveSessions = true, forYou = false } = opts;
+  invalidateCachePrefix("leads:");
+  if (leadId) deleteCacheKey(`lead:${leadId}`);
+  if (overview) deleteCacheKey("dashboard:overview");
+  if (liveSessions) {
+    deleteCacheKey("live-sessions:merged");
+    deleteCacheKey("active-sessions:active");
+    deleteCacheKey("active-sessions:ringing");
+  }
+  if (forYou) invalidateCachePrefix("for-you:");
+}
+
 // Backend API URL - change this based on your environment
 const API_BASE = "http://localhost:8000";
 // For production: const API_BASE = "https://your-backend.com";
+
+/** Short TTLs keep admin views fresh while deduping rapid navigation. */
+const TTL = {
+  leadsList: 25_000,
+  leadDetail: 35_000,
+  dashboardOverview: 30_000,
+  activeSessions: 12_000,
+  liveMerged: 12_000,
+  forYouDashboard: 20_000,
+};
 
 /**
  * Fetch complete For You dashboard with recommendations
@@ -15,25 +48,35 @@ const API_BASE = "http://localhost:8000";
  * @param {string} email - User email (fallback)
  * @returns {Promise<object>} Dashboard with lead profile, recommendations, insights
  */
-export async function fetchForYouDashboard(sessionId, email) {
-  const params = new URLSearchParams();
-  if (sessionId) params.append("session_id", sessionId);
-  if (email) params.append("email", email);
+/**
+ * @param {object} [options]
+ * @param {boolean} [options.bypassCache]
+ */
+export async function fetchForYouDashboard(sessionId, email, options = {}) {
+  const { bypassCache = false } = options;
+  const key = `for-you:dashboard:${sessionId || "-"}:${email || "-"}`;
+  if (bypassCache) deleteCacheKey(key);
 
-  const response = await fetch(
-    `${API_BASE}/api/v1/for-you/dashboard?${params}`,
-    {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
+  return withCache(key, TTL.forYouDashboard, async () => {
+    const params = new URLSearchParams();
+    if (sessionId) params.append("session_id", sessionId);
+    if (email) params.append("email", email);
+
+    const response = await fetch(
+      `${API_BASE}/api/v1/for-you/dashboard?${params}`,
+      {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to fetch For You dashboard");
     }
-  );
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch For You dashboard");
-  }
-
-  return response.json();
+    return response.json();
+  });
 }
 
 /**
@@ -103,6 +146,7 @@ export async function updateLeadCompleteness(leadId) {
   }
 
   const data = await response.json();
+  invalidateAdminApiCache({ leadId, overview: false, liveSessions: false, forYou: true });
   return data.data; // Extract lead from response
 }
 
@@ -133,6 +177,7 @@ export async function saveRecommendations(leadId, universities, scholarships) {
   }
 
   const data = await response.json();
+  invalidateAdminApiCache({ leadId, overview: false, liveSessions: false, forYou: true });
   return data.data;
 }
 
@@ -244,21 +289,29 @@ export async function getCostRecommendations(sessionId, costData = null) {
 
 /**
  * Fetch admin dashboard metrics
+ * @param {object} [options]
+ * @param {boolean} [options.bypassCache]
  * @returns {Promise<object>} Dashboard overview with hot/warm/cold counts
  */
-export async function fetchDashboardOverview() {
-  const response = await fetch(`${API_BASE}/api/dashboard/overview`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
+export async function fetchDashboardOverview(options = {}) {
+  const { bypassCache = false } = options;
+  const key = "dashboard:overview";
+  if (bypassCache) deleteCacheKey(key);
+
+  return withCache(key, TTL.dashboardOverview, async () => {
+    const response = await fetch(`${API_BASE}/api/dashboard/overview`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to fetch dashboard overview");
+    }
+
+    const data = await response.json();
+    return data.data;
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch dashboard overview");
-  }
-
-  const data = await response.json();
-  return data.data;
 }
 
 /**
@@ -267,26 +320,121 @@ export async function fetchDashboardOverview() {
  * @param {number} limit - Results per page
  * @param {string} classification - Filter by Hot/Warm/Cold
  * @param {string} search - Search by name or email
+ * @param {object} [options]
+ * @param {boolean} [options.bypassCache]
  * @returns {Promise<object>} Paginated leads with metadata
  */
-export async function fetchLeads(page = 1, limit = 20, classification = null, search = null) {
-  const params = new URLSearchParams();
-  params.append("page", page);
-  params.append("limit", limit);
-  if (classification) params.append("classification", classification);
-  if (search) params.append("search", search);
+export async function fetchLeads(page = 1, limit = 20, classification = null, search = null, options = {}) {
+  const { bypassCache = false } = options;
+  const key = `leads:${page}:${limit}:${classification ?? ""}:${search ?? ""}`;
+  if (bypassCache) deleteCacheKey(key);
 
-  const response = await fetch(`${API_BASE}/api/leads?${params}`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
+  return withCache(key, TTL.leadsList, async () => {
+    const params = new URLSearchParams();
+    params.append("page", page);
+    params.append("limit", limit);
+    if (classification) params.append("classification", classification);
+    if (search) params.append("search", search);
+
+    const response = await fetch(`${API_BASE}/api/leads?${params}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to fetch leads");
+    }
+
+    return response.json();
   });
+}
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || "Failed to fetch leads");
+/**
+ * Fetch a single lead with nested call_sessions (full schema fields).
+ * @param {string} leadId - UUID
+ * @param {object} [options]
+ * @param {boolean} [options.bypassCache]
+ * @returns {Promise<object>} Lead row including call_sessions
+ */
+export async function fetchLead(leadId, options = {}) {
+  const { bypassCache = false } = options;
+  const key = `lead:${leadId}`;
+  if (bypassCache) deleteCacheKey(key);
+
+  return withCache(key, TTL.leadDetail, async () => {
+    const response = await fetch(`${API_BASE}/api/leads/${encodeURIComponent(leadId)}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || "Failed to fetch lead");
+    }
+
+    const body = await response.json();
+    return body.data;
+  });
+}
+
+/**
+ * List call sessions with a given status (ringing, active, completed, etc.)
+ * @param {string} status - Session status filter
+ * @param {object} [options]
+ * @param {boolean} [options.bypassCache]
+ * @returns {Promise<object[]>} Session rows
+ */
+export async function fetchActiveSessions(status = "active", options = {}) {
+  const { bypassCache = false } = options;
+  const key = `active-sessions:${status || "active"}`;
+  if (bypassCache) deleteCacheKey(key);
+
+  return withCache(key, TTL.activeSessions, async () => {
+    const params = new URLSearchParams();
+    if (status) params.append("status", status);
+
+    const response = await fetch(`${API_BASE}/api/dashboard/active-sessions?${params}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || "Failed to fetch active sessions");
+    }
+
+    const body = await response.json();
+    return body.data || [];
+  });
+}
+
+/**
+ * Live/ringing sessions merged (deduped by id).
+ * @param {object} [options]
+ * @param {boolean} [options.bypassCache]
+ * @returns {Promise<object[]>}
+ */
+export async function fetchLiveAndRingingSessions(options = {}) {
+  const { bypassCache = false } = options;
+  const key = "live-sessions:merged";
+  if (bypassCache) {
+    deleteCacheKey(key);
+    deleteCacheKey("active-sessions:active");
+    deleteCacheKey("active-sessions:ringing");
   }
 
-  return response.json();
+  return withCache(key, TTL.liveMerged, async () => {
+    const [active, ringing] = await Promise.all([
+      fetchActiveSessions("active", options),
+      fetchActiveSessions("ringing", options),
+    ]);
+    const byId = new Map();
+    for (const row of [...(ringing || []), ...(active || [])]) {
+      if (row?.id) byId.set(row.id, row);
+    }
+    return Array.from(byId.values());
+  });
 }
 
 /**
@@ -308,6 +456,7 @@ export async function updateLead(leadId, updateData) {
   }
 
   const data = await response.json();
+  invalidateAdminApiCache({ leadId, overview: true, liveSessions: true, forYou: true });
   return data.data;
 }
 

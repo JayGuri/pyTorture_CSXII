@@ -241,7 +241,6 @@ async def funnel(date_from: Optional[str] = None) -> DataResponse[FunnelResponse
         raise HTTPException(status_code=500, detail=f"Failed to fetch funnel: {str(exc)}")
 
 
-
 # GET /api/dashboard/sessions/:session_id/onboarding-progress
 @router.get("/sessions/{session_id}/onboarding-progress")
 async def onboarding_progress(session_id: str):
@@ -272,6 +271,8 @@ async def onboarding_progress(session_id: str):
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
+
+
 # GET /api/dashboard/faq-gaps
 @router.get("/faq-gaps")
 async def faq_gaps(
