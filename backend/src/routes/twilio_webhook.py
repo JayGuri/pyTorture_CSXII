@@ -208,7 +208,7 @@ def _say(text: str, lang: str) -> str:
 def _record(lang: str) -> str:
     action = _build_url(_twilio_path("/process-recording"), {"lang": lang})
     return (
-        f'<Record action="{action}" method="POST" maxLength="60" '
+        f'<Record action="{action}" method="POST" maxLength="25" '
         f'timeout="6" playBeep="true" trim="trim-silence" actionOnEmptyResult="true"/>'
     )
 
