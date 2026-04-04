@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Award, Building2, Flag, Filter, Sparkles } from "lucide-react";
-import { SCHOLARSHIPS } from "../data/forYouPrograms";
+import { ArrowLeft, Award, Building2, Flag, Filter, Sparkles, Loader2 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { useRecommendations } from "../hooks/useForYouDashboard";
+import { SCHOLARSHIPS as STATIC_SCHOLARSHIPS } from "../data/forYouPrograms";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -12,16 +14,38 @@ const FILTERS = [
 ];
 
 export default function ScholarshipsPage() {
-  const [filter, setFilter] = useState("all");
+  const { user } = useAuth();
+  const { scholarships: backendScholarships, loading } = useRecommendations(
+    user?.sessionId,
+    user?.email
+  );
+  const [filter, setFilter] = useState("eligible");
+
+  const normalizedScholarships = useMemo(() => {
+    if (backendScholarships && backendScholarships.length > 0) {
+      return backendScholarships.map((s, idx) => ({
+        id: s.id || `scholar-${idx}`,
+        name: s.name || s.title,
+        region: s.country || s.region || "International",
+        type: s.funding_level === "full" ? "Fully Funded" : "Tuition Award",
+        amountNote: s.amount_note || "Varies by academic merit",
+        eligibility: s.eligibility_list || s.requirements || ["India resident", "Academic merit"],
+        applyVia: s.apply_via || "Fateh counsellor assistance",
+        source: s.source || (s.india_specific ? "india" : "university"),
+        youMayQualify: s.match_score > 30,
+      }));
+    }
+    return STATIC_SCHOLARSHIPS;
+  }, [backendScholarships]);
 
   const rows = useMemo(() => {
-    return SCHOLARSHIPS.filter((s) => {
+    return normalizedScholarships.filter((s) => {
       if (filter === "eligible") return s.youMayQualify;
       if (filter === "india") return s.source === "india" || s.source === "india_eligible";
       if (filter === "university") return s.source === "university";
       return true;
     });
-  }, [filter]);
+  }, [filter, normalizedScholarships]);
 
   return (
     <div className="relative min-h-screen bg-fateh-paper pb-24 pt-24 md:pt-28">
@@ -82,67 +106,74 @@ export default function ScholarshipsPage() {
           ))}
         </div>
 
-        <ul className="mt-10 space-y-6">
-          {rows.map((s, i) => (
-            <motion.li
-              key={s.id}
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(i * 0.04, 0.35) }}
-              className="overflow-hidden rounded-2xl border border-fateh-border/90 bg-white/95 shadow-sm"
-            >
-              <div className="border-b border-fateh-border/70 bg-linear-to-r from-fateh-gold-pale/50 to-transparent px-6 py-4 md:px-8">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-fateh-gold/15 text-fateh-gold">
-                      <Award className="h-5 w-5" strokeWidth={1.35} />
-                    </span>
-                    <div>
-                      <h2 className="font-fateh-serif text-xl font-semibold text-fateh-ink normal-case md:text-2xl">
-                        {s.name}
-                      </h2>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-fateh-ink/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-fateh-muted">
-                          <Flag className="h-3 w-3" strokeWidth={1.5} />
-                          {s.region}
-                        </span>
-                        <span className="inline-flex items-center gap-1 rounded-md bg-fateh-accent/10 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-fateh-accent">
-                          <Building2 className="h-3 w-3" strokeWidth={1.5} />
-                          {s.type}
-                        </span>
-                        {s.youMayQualify ? (
-                          <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-emerald-900">
-                            Profile match (demo)
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-24">
+            <Loader2 className="h-10 w-10 animate-spin text-fateh-gold" strokeWidth={1.5} />
+            <p className="mt-4 text-sm text-fateh-muted normal-case italic">Personalizing funding options for your profile...</p>
+          </div>
+        ) : (
+          <ul className="mt-10 space-y-6">
+            {rows.map((s, i) => (
+              <motion.li
+                key={s.id}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: Math.min(i * 0.04, 0.35) }}
+                className="overflow-hidden rounded-2xl border border-fateh-border/90 bg-white/95 shadow-sm"
+              >
+                <div className="border-b border-fateh-border/70 bg-linear-to-r from-fateh-gold-pale/50 to-transparent px-6 py-4 md:px-8">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-fateh-gold/15 text-fateh-gold">
+                        <Award className="h-5 w-5" strokeWidth={1.35} />
+                      </span>
+                      <div>
+                        <h2 className="font-fateh-serif text-xl font-semibold text-fateh-ink normal-case md:text-2xl">
+                          {s.name}
+                        </h2>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-fateh-ink/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-fateh-muted">
+                            <Flag className="h-3 w-3" strokeWidth={1.5} />
+                            {s.region}
                           </span>
-                        ) : null}
+                          <span className="inline-flex items-center gap-1 rounded-md bg-fateh-accent/10 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-fateh-accent">
+                            <Building2 className="h-3 w-3" strokeWidth={1.5} />
+                            {s.type}
+                          </span>
+                          {s.youMayQualify ? (
+                            <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-emerald-900">
+                              Top Match
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              <div className="space-y-5 px-6 py-6 md:px-8 md:py-8">
-                <div>
-                  <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold">Award (indicative)</p>
-                  <p className="mt-1 text-sm font-medium text-fateh-ink leading-relaxed normal-case">{s.amountNote}</p>
+                <div className="space-y-5 px-6 py-6 md:px-8 md:py-8">
+                  <div>
+                    <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold">Award (indicative)</p>
+                    <p className="mt-1 text-sm font-medium text-fateh-ink leading-relaxed normal-case">{s.amountNote}</p>
+                  </div>
+                  <div>
+                    <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold">Eligibility criteria</p>
+                    <ul className="mt-2 list-inside list-disc space-y-1.5 text-sm text-fateh-muted leading-relaxed">
+                      {Array.isArray(s.eligibility) ? s.eligibility.map((line) => (
+                        <li key={line} className="normal-case">
+                          {line}
+                        </li>
+                      )) : <li className="normal-case">{s.eligibility}</li>}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold">How to apply</p>
+                    <p className="mt-2 text-sm text-fateh-ink leading-relaxed normal-case">{s.applyVia}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold">Eligibility criteria</p>
-                  <ul className="mt-2 list-inside list-disc space-y-1.5 text-sm text-fateh-muted leading-relaxed">
-                    {s.eligibility.map((line) => (
-                      <li key={line} className="normal-case">
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-[0.62rem] font-bold uppercase tracking-wider text-fateh-gold">How to apply</p>
-                  <p className="mt-2 text-sm text-fateh-ink leading-relaxed normal-case">{s.applyVia}</p>
-                </div>
-              </div>
-            </motion.li>
-          ))}
-        </ul>
+              </motion.li>
+            ))}
+          </ul>
+        )}
 
         {rows.length === 0 ? (
           <p className="mt-12 rounded-xl border border-dashed border-fateh-border bg-white/80 px-6 py-10 text-center text-sm text-fateh-muted normal-case">

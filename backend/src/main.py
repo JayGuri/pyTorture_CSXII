@@ -14,7 +14,7 @@ from src.config.env import env
 from src.middleware.error_handler import ErrorHandlerMiddleware
 from src.middleware.rate_limiter import RateLimiterMiddleware
 from src.routes.twilio_webhook import router as twilio_router
-from src.routes.dashboard import router as dashboard_router
+# from src.routes.dashboard import router as dashboard_router
 from src.routes.leads import router as leads_router
 from src.routes.sessions import router as sessions_router
 from src.routes.health import router as health_router
@@ -164,12 +164,26 @@ async def validation_exception_handler(request, exc):
 # ─── Routes ──────────────────────────────────────────────
 app.include_router(twilio_router, prefix="/webhooks/twilio")
 app.include_router(twilio_router, prefix="/api/twilio", include_in_schema=False)
-app.include_router(dashboard_router)
+# app.include_router(dashboard_router)
 app.include_router(leads_router)
 app.include_router(sessions_router)
 app.include_router(health_router)
 app.include_router(voice_agent_router)
 app.include_router(for_you_router)
+
+
+@app.get("/api/dashboard/overview")
+async def dashboard_overview():
+    """Placeholder for missing dashboard/overview endpoint."""
+    return {
+        "summary": {
+            "total_calls": 0,
+            "leads_captured": 0,
+            "hot_leads": 0,
+            "avg_call_duration": 0
+        },
+        "recent_activity": []
+    }
 
 
 @app.get("/")
