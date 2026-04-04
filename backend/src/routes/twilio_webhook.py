@@ -431,6 +431,7 @@ async def process_turn_webhook(request: Request, lang: str = Query(default="en-I
                         call_sid=call_sid,
                         caller_doc=state.caller_doc,
                         is_returning_caller=state.is_returning_caller,
+                        llm_time_budget_sec=orchestrator_timeout,
                     ),
                     timeout=orchestrator_timeout,
                 )

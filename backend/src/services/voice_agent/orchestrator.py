@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import time
 from typing import Any, Dict, List, Tuple
 
 from src.db.mongo_client import get_db
-from src.services.llm.gemini import generate_reply
+from src.services.llm import generate_reply_with_fallback
 from src.services.voice_agent.extractor import (
     build_extraction_prompt,
     extract_updates,
@@ -23,14 +24,24 @@ FALLBACK_REPLIES = {
 }
 
 
-async def _llm_extract(transcript: str, ai_reply: str, existing_doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Use Gemini to extract structured fields from the conversation turn."""
+async def _llm_extract(
+    transcript: str,
+    ai_reply: str,
+    existing_doc: Dict[str, Any],
+    llm_time_budget_sec: float | None = None,
+) -> Dict[str, Any]:
+    """Use the routed LLM providers to extract structured fields from a turn."""
     prompt = build_extraction_prompt(transcript, ai_reply, existing_doc)
     if not prompt:
         return {}
 
     try:
-        raw = await generate_reply(prompt, [{"role": "user", "content": "Extract the fields."}])
+        raw, _ = await generate_reply_with_fallback(
+            prompt,
+            [{"role": "user", "content": "Extract the fields."}],
+            llm_time_budget_sec=llm_time_budget_sec,
+            request_label="extraction",
+        )
         if not raw:
             return {}
         return parse_llm_extraction(raw)
@@ -47,6 +58,7 @@ async def process_turn(
     call_sid: str,
     caller_doc: Dict[str, Any] | None = None,
     is_returning_caller: bool = False,
+    llm_time_budget_sec: float | None = None,
 ) -> Tuple[str, Dict[str, Any]]:
     db = None
     current_doc = dict(caller_doc or {})
@@ -78,7 +90,21 @@ async def process_turn(
         is_returning_caller=is_returning_caller,
     )
 
-    reply = await generate_reply(system_prompt, context_messages)
+    turn_started = time.monotonic()
+
+    def _remaining_llm_budget_sec() -> float | None:
+        if llm_time_budget_sec is None:
+            return None
+        return max(0.0, float(llm_time_budget_sec) - (time.monotonic() - turn_started))
+
+    reply, provider_used = await generate_reply_with_fallback(
+        system_prompt,
+        context_messages,
+        llm_time_budget_sec=_remaining_llm_budget_sec(),
+        request_label="main_reply",
+    )
+    logger.info(f"LLM provider selected | call_sid={call_sid} provider={provider_used}")
+
     if not reply:
         reply = FALLBACK_REPLIES.get(language, FALLBACK_REPLIES["en-IN"])
 
@@ -89,7 +115,12 @@ async def process_turn(
         regex_updates = extract_updates(transcript, current_doc)
 
         # Step 2: LLM-powered extraction (uses transcript + AI reply for richer context)
-        llm_updates = await _llm_extract(transcript, reply, current_doc)
+        llm_updates = await _llm_extract(
+            transcript,
+            reply,
+            current_doc,
+            llm_time_budget_sec=_remaining_llm_budget_sec(),
+        )
 
         # Step 3: Merge — LLM takes priority for complex fields
         extracted_updates = merge_extractions(regex_updates, llm_updates)

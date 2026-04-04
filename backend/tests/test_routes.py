@@ -19,6 +19,7 @@ def test_health_endpoint_with_mocked_checks(client):
     with (
         patch("src.routes.health._check_mongodb", new=AsyncMock(return_value="ok")),
         patch("src.routes.health._check_groq", new=AsyncMock(return_value="ok")),
+        patch("src.routes.health._check_featherless", new=AsyncMock(return_value="ok")),
         patch("src.routes.health._check_gemini", new=AsyncMock(return_value="ok")),
         patch("src.routes.health._check_sarvam", new=AsyncMock(return_value="ok")),
         patch("src.routes.health._check_public_url", return_value="ok"),

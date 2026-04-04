@@ -6,7 +6,7 @@ This backend is intentionally lean:
 
 - Telephony: Twilio
 - STT: Groq Whisper
-- LLM: Gemini 2.0 Flash
+- LLM: Featherless (Gemma) primary with Gemini fallback
 - TTS: Sarvam AI
 - Database: MongoDB Atlas
 - Runtime: FastAPI + Uvicorn
@@ -18,7 +18,7 @@ The older Supabase, Redis, RAG, cron-job, and multi-provider voice stack has bee
 - Accepts inbound Twilio voice calls
 - Lets the caller choose English, Hindi, or Marathi
 - Transcribes the caller audio with Groq Whisper
-- Generates a voice-ready counsellor reply with Gemini
+- Generates a voice-ready counsellor reply with Featherless and falls back to Gemini when needed
 - Synthesizes audio with Sarvam and serves it back to Twilio
 - Stores caller profile, lead score, call history, and persistent memory in MongoDB
 - Handles both first-time onboarding and returning callers
@@ -48,7 +48,7 @@ The older Supabase, Redis, RAG, cron-job, and multi-provider voice stack has bee
 | Database | MongoDB Atlas via Motor |
 | Telephony | Twilio |
 | STT | Groq Whisper |
-| LLM | Google Gemini 2.0 Flash |
+| LLM | Featherless (primary) + Google Gemini (fallback) |
 | TTS | Sarvam AI |
 | Logging | Loguru |
 
@@ -74,7 +74,9 @@ backend/
 │   │   └── twilio_webhook.py
 │   ├── services/
 │   │   ├── llm/
-│   │   │   └── gemini.py
+│   │   │   ├── featherless.py
+│   │   │   ├── gemini.py
+│   │   │   └── router.py
 │   │   ├── stt/
 │   │   │   └── groq_whisper.py
 │   │   ├── tts/
@@ -130,10 +132,22 @@ GROQ_API_KEY=your_groq_api_key
 
 # LLM
 GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-2.0-flash
-GEMINI_MAX_RETRIES=3
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MAX_RETRIES=1
 GEMINI_RETRY_BACKOFF_BASE_SEC=0.5
-GEMINI_QUOTA_COOLDOWN_SEC=90
+GEMINI_QUOTA_COOLDOWN_SEC=30
+
+LLM_PRIMARY_PROVIDER=featherless
+GEMINI_FALLBACK_MIN_BUDGET_SEC=0.65
+
+FEATHERLESS_API_KEY=your_featherless_api_key
+FEATHERLESS_MODEL=google/gemma-3-4b-it
+FEATHERLESS_BASE_URL=https://api.featherless.ai/v1
+FEATHERLESS_TIMEOUT_SEC=2.5
+FEATHERLESS_MAX_RETRIES=1
+FEATHERLESS_RETRY_BACKOFF_BASE_SEC=0.35
+FEATHERLESS_FAILURE_COOLDOWN_SEC=45
+FEATHERLESS_MAX_OUTPUT_TOKENS=256
 
 # TTS
 SARVAM_API_KEY=your_sarvam_api_key
@@ -200,7 +214,7 @@ The backend expects `PUBLIC_URL` to be a publicly reachable HTTPS URL.
 5. `POST /webhooks/twilio/process-turn`
 6. Backend downloads recording from Twilio
 7. Groq Whisper transcribes the audio
-8. Gemini generates the counsellor reply
+8. Featherless generates the counsellor reply (Gemini fallback on timeout or provider errors)
 9. Sarvam synthesizes reply audio
 10. Twilio plays audio and records the next turn
 11. `POST /webhooks/twilio/status` or `POST /webhooks/twilio/voice/status` finalizes the call record
@@ -309,8 +323,9 @@ If Sarvam fails, the backend falls back to Twilio `<Say>`.
 ## Reliability Rules
 
 - STT failure: reprompt up to `STT_REPROMPT_LIMIT`
-- LLM timeout or failure: use a safe fallback spoken reply
-- LLM quota exhaustion: enter cooldown and continue call with static fallback replies
+- Featherless timeout/error/empty response: fall back to Gemini in the same turn
+- LLM timeout or dual-provider failure: use a safe fallback spoken reply
+- LLM quota exhaustion: enter provider cooldown and continue call with static fallback replies
 - TTS failure: fall back to Twilio `<Say>`
 - Twilio webhook deadline mode: preserves an internal time budget and falls back early to `<Say>` when budget is low, so Twilio gets TwiML before the 15s timeout
 - In fast deadline mode, Sarvam TTS limits retries in webhook context to reduce timeout risk
@@ -340,7 +355,7 @@ Current tests cover:
 
 - Twilio signature validation is skipped in development mode and enforced in production-like environments.
 - `PUBLIC_URL` should not include a path.
-- The health check performs live checks against MongoDB, Groq, Gemini, Sarvam, and `PUBLIC_URL`.
+- The health check performs live checks against MongoDB, Groq, Featherless, Gemini, Sarvam, and `PUBLIC_URL`.
 - Recent conversation history is capped to keep prompts fast and cheap.
 
 ## Main Files to Read First

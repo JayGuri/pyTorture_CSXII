@@ -42,7 +42,22 @@ async def _check_gemini() -> str:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(
                 f"https://generativelanguage.googleapis.com/v1beta/{model_name}",
-                params={"key": env.GEMINI_API_KEY},
+                headers={"x-goog-api-key": env.GEMINI_API_KEY},
+            )
+            return "ok" if response.status_code == 200 else "error"
+    except Exception:
+        return "error"
+
+
+async def _check_featherless() -> str:
+    if not env.FEATHERLESS_API_KEY:
+        return "error"
+    endpoint = f"{env.FEATHERLESS_BASE_URL.rstrip('/')}/models"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                endpoint,
+                headers={"Authorization": f"Bearer {env.FEATHERLESS_API_KEY}"},
             )
             return "ok" if response.status_code == 200 else "error"
     except Exception:
@@ -68,6 +83,7 @@ async def health_check():
     checks = {
         "mongodb": await _check_mongodb(),
         "groq": await _check_groq(),
+        "featherless": await _check_featherless(),
         "gemini": await _check_gemini(),
         "sarvam": await _check_sarvam(),
         "public_url": _check_public_url(),

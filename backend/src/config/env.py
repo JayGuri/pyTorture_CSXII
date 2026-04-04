@@ -27,13 +27,32 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str = Field(default="")
     TWILIO_PHONE_NUMBER: str = Field(default="")
 
+    GROQ_STT_API_KEY: str = Field(default="")
     GROQ_API_KEY: str = Field(default="")
+    GROQ_LLM_MODEL: str = Field(default="llama-3.1-8b-instant")
+    GROQ_LLM_BASE_URL: str = Field(default="https://api.groq.com/openai/v1")
+    GROQ_LLM_TIMEOUT_SEC: float = Field(default=2.5)
+    GROQ_LLM_MAX_RETRIES: int = Field(default=1)
+    GROQ_LLM_RETRY_BACKOFF_BASE_SEC: float = Field(default=0.2)
+    GROQ_LLM_MAX_OUTPUT_TOKENS: int = Field(default=192)
 
     GEMINI_API_KEY: str = Field(default="")
     GEMINI_MODEL: str = Field(default="gemini-2.5-flash")
     GEMINI_MAX_RETRIES: int = Field(default=1)
     GEMINI_RETRY_BACKOFF_BASE_SEC: float = Field(default=0.5)
     GEMINI_QUOTA_COOLDOWN_SEC: int = Field(default=30)
+
+    LLM_PRIMARY_PROVIDER: str = Field(default="featherless")
+    GEMINI_FALLBACK_MIN_BUDGET_SEC: float = Field(default=0.65)
+
+    FEATHERLESS_API_KEY: str = Field(default="")
+    FEATHERLESS_MODEL: str = Field(default="google/gemma-3-4b-it")
+    FEATHERLESS_BASE_URL: str = Field(default="https://api.featherless.ai/v1")
+    FEATHERLESS_TIMEOUT_SEC: float = Field(default=15)
+    FEATHERLESS_MAX_RETRIES: int = Field(default=1)
+    FEATHERLESS_RETRY_BACKOFF_BASE_SEC: float = Field(default=0.35)
+    FEATHERLESS_FAILURE_COOLDOWN_SEC: int = Field(default=45)
+    FEATHERLESS_MAX_OUTPUT_TOKENS: int = Field(default=256)
 
     SARVAM_API_KEY: str = Field(default="")
     SARVAM_API_KEY_FALLBACK: str = Field(default="")
