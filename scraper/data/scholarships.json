@@ -1,0 +1,883 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "last_updated": "April 2026",
+    "description": "Scholarship data for UK, Ireland, and Dubai — structured for easy filtering and retrieval by the Fateh Education AI counselling bot.",
+    "primary_audience": "Indian students",
+    "filter_keys": ["country", "type", "funding_level", "level_of_study", "eligible_nationalities", "eligible_subjects", "application_window_month", "amount_gbp_approx"],
+    "currency_note": "UK scholarships in GBP. Ireland in EUR. Dubai in AED. Use live_metrics for INR conversion.",
+    "data_sources": [
+      "chevening.org",
+      "britishcouncil.in",
+      "hea.ie (GOI-IES)",
+      "cscuk.fcdo.gov.uk",
+      "scotland.org",
+      "individual university websites",
+      "study-uk.britishcouncil.org"
+    ],
+    "usage_tip": "Filter by country + funding_level + eligible_nationalities for quickest match. Use level_of_study to separate UG vs Masters vs PhD. Check application_window_month to identify open/upcoming scholarships."
+  },
+
+  "scholarships": [
+
+    {
+      "id": "chevening",
+      "name": "Chevening Scholarships",
+      "country": "UK",
+      "funded_by": "UK Foreign Commonwealth & Development Office (FCDO) + partner organisations",
+      "administering_body": "Chevening Secretariat",
+      "type": "government",
+      "funding_level": "full",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Any subject — must be 1-year taught Masters",
+      "eligible_subjects": ["All"],
+      "description": "UK Government's flagship international scholarship programme. Fully funded 1-year Masters at any UK university. Selects future leaders and decision-makers.",
+      "amount_summary": "~£30,000 total package",
+      "covers": [
+        "Full tuition fees",
+        "Monthly living allowance (London and outside London rates)",
+        "Economy return flights from home country",
+        "UK Student Visa fee",
+        "IHS (Immigration Health Surcharge)",
+        "Thesis grant up to £500",
+        "Study travel grant up to £500"
+      ],
+      "amount_gbp_approx": 30000,
+      "eligible_nationalities": "140+ countries including India, Pakistan, Bangladesh, Sri Lanka",
+      "india_specific": {
+        "india_eligible": true,
+        "awards_per_year_india_approx": "50–100",
+        "note": "India has one of the largest Chevening programmes globally."
+      },
+      "eligibility": {
+        "citizenship": "Citizen of Chevening-eligible country (not UK)",
+        "degree": "Minimum 2:1 equivalent (60%+ for Indian students)",
+        "work_experience": "Minimum 2 years full-time (2,800 hours) post-graduation — MANDATORY",
+        "university_offers": "Must have 3 UK university choices — offer required by specific deadline",
+        "return_commitment": "Must return to home country for minimum 2 years after scholarship ends",
+        "cannot_apply": "UK citizens, current FCDO employees"
+      },
+      "application_cycle_2026_27": {
+        "status": "Closed — applications closed October 2025",
+        "results_announcement": "June 2026",
+        "study_start": "September/October 2026"
+      },
+      "application_cycle_2027_28": {
+        "opens": "~August 2026",
+        "deadline": "~October 2026"
+      },
+      "application_window_months": [8, 9, 10],
+      "selection_process": "Reading committee → Shortlist → Embassy interview → Final selection",
+      "competition_level": "very_high",
+      "official_url": "https://www.chevening.org/scholarships/",
+      "tips": "Rewards clear career vision, demonstrated leadership, and community impact. Work experience is mandatory — cannot apply without 2,800 hours. Prepare strong statement of purpose and leadership examples."
+    },
+
+    {
+      "id": "great_scholarships_uk",
+      "name": "GREAT Scholarships (India)",
+      "country": "UK",
+      "funded_by": "UK Government GREAT Britain Campaign + British Council + participating UK universities",
+      "administering_body": "British Council",
+      "type": "government_university_joint",
+      "funding_level": "partial",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Varies by university — check individual university pages",
+      "eligible_subjects": ["All (varies by university)"],
+      "description": "Minimum £10,000 towards tuition for a one-year taught postgraduate course. For students from India at participating UK universities.",
+      "amount_summary": "Minimum £10,000 towards tuition",
+      "covers": ["Partial tuition fees — £10,000 minimum"],
+      "amount_gbp_approx": 10000,
+      "eligible_nationalities": ["India"],
+      "india_specific": {
+        "india_eligible": true,
+        "awards_available_2026_27": 12,
+        "note": "12 scholarships available for Indian students in 2026–27 academic year."
+      },
+      "eligibility": {
+        "citizenship": "Must be a citizen of India",
+        "degree": "Must hold an undergraduate degree meeting the entry requirements of the specific university",
+        "level": "Postgraduate taught (Masters) only",
+        "english": "Must meet the English language requirements of the specific university"
+      },
+      "participating_universities_2026_27": [
+        "University of Bristol",
+        "Anglia Ruskin University",
+        "Norwich University of the Arts",
+        "Queen's University Belfast",
+        "Royal College of Art",
+        "Royal Conservatoire of Scotland",
+        "Royal Northern College of Music",
+        "Trinity Laban",
+        "University of Dundee",
+        "University of Kent",
+        "University of Reading",
+        "University of Surrey",
+        "University of the West of England"
+      ],
+      "application_window_months": [1, 2, 3, 4, 5, 6],
+      "application_note": "Apply directly to individual university — deadline varies by institution (typically January–June)",
+      "competition_level": "medium",
+      "official_url": "https://study-uk.britishcouncil.org/scholarships-funding/great-scholarships/india",
+      "tips": "Apply early to individual universities. Deadlines vary — check each university page. Can be combined with university merit scholarships in some cases."
+    },
+
+    {
+      "id": "commonwealth_masters_scholarship",
+      "name": "Commonwealth Masters Scholarships",
+      "country": "UK",
+      "funded_by": "UK Commonwealth Scholarship Commission (FCDO)",
+      "administering_body": "Commonwealth Scholarship Commission (CSC)",
+      "type": "government",
+      "funding_level": "full",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Taught Masters — check CSC list. Priority areas: STEM, health, education, development",
+      "eligible_subjects": ["All (priority in STEM, health, development)"],
+      "description": "Fully funded Masters for citizens of developing Commonwealth countries. Covers all costs including travel. For those who could not otherwise study in the UK.",
+      "amount_summary": "Full funding — all costs covered",
+      "covers": [
+        "Full tuition fees",
+        "Living allowance",
+        "Economy return flights",
+        "Thesis grant",
+        "Arrival allowance",
+        "Fieldwork grant (if applicable)"
+      ],
+      "amount_gbp_approx": 35000,
+      "eligible_nationalities": ["India", "Pakistan", "Bangladesh", "Sri Lanka", "Other developing Commonwealth countries"],
+      "india_specific": {
+        "india_eligible": true,
+        "note": "India is a developing Commonwealth country — eligible. Competition is high."
+      },
+      "eligibility": {
+        "citizenship": "Citizen of a developing Commonwealth country",
+        "degree": "First class or 2:1 equivalent (60%+ for Indian students)",
+        "residency": "Must not be ordinarily resident in the UK",
+        "financial_need": "Priority given to those who cannot otherwise afford UK study"
+      },
+      "application_window_months": [10, 11, 12],
+      "application_note": "Typically opens October, deadline December each year. Apply through Indian national nominating agency.",
+      "competition_level": "very_high",
+      "official_url": "https://cscuk.fcdo.gov.uk/scholarships/commonwealth-masters-scholarships/",
+      "tips": "Strong academic record plus demonstrated financial need. Submit through the national nominating agency in India (often Ministry of Education)."
+    },
+
+    {
+      "id": "gates_cambridge_scholarship",
+      "name": "Gates Cambridge Scholarships",
+      "country": "UK",
+      "funded_by": "Bill & Melinda Gates Foundation",
+      "administering_body": "University of Cambridge",
+      "type": "private_foundation",
+      "funding_level": "full",
+      "level_of_study": ["Masters", "PhD"],
+      "subject_restriction": "Any subject at the University of Cambridge only",
+      "eligible_subjects": ["All (at Cambridge)"],
+      "description": "Prestigious fully funded scholarship for exceptional non-UK students to pursue postgraduate study at the University of Cambridge. Selects scholars for academic excellence and commitment to improving lives.",
+      "amount_summary": "Full funding — all costs covered",
+      "covers": [
+        "Full Cambridge tuition fees",
+        "Maintenance allowance",
+        "Economy return flights",
+        "Family allowance (if applicable)",
+        "Academic development funding"
+      ],
+      "amount_gbp_approx": 45000,
+      "eligible_nationalities": "Any country outside the UK",
+      "india_specific": {
+        "india_eligible": true,
+        "note": "~80 awards globally per year — extremely competitive."
+      },
+      "eligibility": {
+        "citizenship": "Any country outside UK",
+        "degree": "Outstanding academic record — typically first class",
+        "university_application": "Must apply to Cambridge course simultaneously",
+        "personal_qualities": "Leadership potential, commitment to improving others' lives, good fit with Cambridge"
+      },
+      "application_window_months": [9, 10],
+      "application_note": "Apply with Cambridge admission application — separate scholarship form within Cambridge portal.",
+      "competition_level": "extremely_high",
+      "official_url": "https://www.gatescambridge.org/apply/",
+      "tips": "Extremely competitive — ~80 awards globally. Must demonstrate both exceptional academic excellence and a commitment to improving lives."
+    },
+
+    {
+      "id": "scotland_saltire_scholarship",
+      "name": "Scotland's Saltire Scholarships",
+      "country": "UK",
+      "funded_by": "Scottish Government",
+      "administering_body": "VisitScotland / Scottish Government",
+      "type": "government",
+      "funding_level": "partial",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Science, Technology, Creative Industries, Healthcare, Renewable Energy",
+      "eligible_subjects": ["Science", "Technology", "Creative Industries", "Healthcare", "Renewable Energy"],
+      "description": "£8,000 towards Masters tuition fees for students from selected countries studying in Scotland. Part of Scotland's strategy to attract international talent.",
+      "amount_summary": "£8,000 towards tuition",
+      "covers": ["Partial tuition fees — £8,000"],
+      "amount_gbp_approx": 8000,
+      "eligible_nationalities": ["India", "China", "Canada", "Japan", "Pakistan", "USA"],
+      "india_specific": {
+        "india_eligible": true,
+        "awards_available_2026_india": "25+",
+        "note": "India is one of the priority nationalities. Over 25 scholarships available for Indian students."
+      },
+      "eligibility": {
+        "citizenship": "Citizen of India, China, Canada, Japan, Pakistan, or USA",
+        "level": "Full-time Masters at a Scottish university",
+        "subject": "Science, Technology, Creative Industries, Healthcare, or Renewable Energy"
+      },
+      "eligible_universities": "Any Scottish university (Edinburgh, Glasgow, Heriot-Watt, Strathclyde, Dundee, Aberdeen, etc.)",
+      "application_window_months": [2, 3, 4, 5, 6],
+      "application_note": "Apply through scotland.org. Typically opens February, deadline June each year.",
+      "competition_level": "medium",
+      "official_url": "https://www.scotland.org/study/saltire-scholarships",
+      "tips": "Good for STEM students going to Scottish universities. Can be combined with university-level scholarships in some cases."
+    },
+
+    {
+      "id": "clarendon_fund_oxford",
+      "name": "Clarendon Fund Scholarships",
+      "country": "UK",
+      "funded_by": "Oxford University Press",
+      "administering_body": "University of Oxford",
+      "type": "university",
+      "funding_level": "full",
+      "level_of_study": ["Masters", "PhD"],
+      "subject_restriction": "Any subject at the University of Oxford only",
+      "eligible_subjects": ["All (at Oxford)"],
+      "description": "Prestigious fully funded scholarships for academically excellent graduate students at the University of Oxford.",
+      "amount_summary": "Full tuition + living expenses",
+      "covers": ["Full Oxford course fees", "Living expenses grant"],
+      "amount_gbp_approx": 40000,
+      "eligible_nationalities": "All nationalities including India",
+      "india_specific": {
+        "india_eligible": true,
+        "note": "Automatically considered when applying to Oxford graduate courses — no separate application."
+      },
+      "eligibility": {
+        "citizenship": "All nationalities — must be enrolled in an eligible Oxford graduate course",
+        "degree": "Outstanding academic record — typically first class",
+        "automatic": "Automatically considered during Oxford admissions — no separate application required"
+      },
+      "application_window_months": [10, 11, 12, 1],
+      "application_note": "Automatically considered when you apply for an Oxford graduate course. Apply to Oxford by the relevant course deadline.",
+      "competition_level": "extremely_high",
+      "official_url": "https://www.ox.ac.uk/clarendon",
+      "tips": "No separate application needed. Your Oxford application IS your Clarendon application. Apply by the earliest Oxford deadline for best consideration."
+    },
+
+    {
+      "id": "weidenfeld_hoffmann_oxford",
+      "name": "Weidenfeld-Hoffmann Scholarships (Oxford)",
+      "country": "UK",
+      "funded_by": "Weidenfeld-Hoffmann Trust",
+      "administering_body": "University of Oxford",
+      "type": "private_foundation",
+      "funding_level": "full",
+      "level_of_study": ["Masters", "PhD"],
+      "subject_restriction": "Any subject at Oxford — emphasis on leadership and public service",
+      "eligible_subjects": ["All (at Oxford) — focus on social sciences, public policy, governance"],
+      "description": "Fully funded Oxford scholarships plus a leadership development programme. For students from developing countries with commitment to making a positive impact.",
+      "amount_summary": "Full tuition + living expenses + leadership programme",
+      "covers": ["Full Oxford course fees", "Living expenses", "Leadership development programme"],
+      "amount_gbp_approx": 42000,
+      "eligible_nationalities": "Students from developing countries — India eligible",
+      "india_specific": {
+        "india_eligible": true,
+        "note": "India is an eligible country. Emphasis on future leaders who will return and contribute."
+      },
+      "eligibility": {
+        "citizenship": "Citizen of an eligible developing country — India included",
+        "level": "Graduate study at Oxford",
+        "personal_qualities": "Leadership potential, commitment to public service and improving society"
+      },
+      "application_window_months": [10, 11, 12, 1],
+      "application_note": "Apply through Oxford graduate admissions — separate scholarship form required.",
+      "competition_level": "extremely_high",
+      "official_url": "https://www.ox.ac.uk/students/fees-funding/graduate",
+      "tips": "Strong emphasis on future leaders who will create positive impact in their home country. Personal statement of leadership vision is critical."
+    },
+
+    {
+      "id": "inlaks_scholarship",
+      "name": "Inlaks Shivdasani Foundation Scholarships",
+      "country": "UK",
+      "funded_by": "Inlaks Shivdasani Foundation",
+      "administering_body": "Inlaks Shivdasani Foundation",
+      "type": "private_foundation",
+      "funding_level": "full",
+      "level_of_study": ["Masters", "PhD"],
+      "subject_restriction": "Arts, Sciences, Humanities, Business — at top UK/USA universities",
+      "eligible_subjects": ["Arts", "Sciences", "Humanities", "Business", "Social Sciences"],
+      "description": "Covers tuition, living expenses, and travel for Indian students studying at top UK and US universities. One of the most prestigious Indian private scholarships for overseas study.",
+      "amount_summary": "Tuition + living expenses + travel",
+      "covers": ["Full tuition fees", "Living expenses", "Travel costs"],
+      "amount_gbp_approx": 30000,
+      "eligible_nationalities": ["India"],
+      "india_specific": {
+        "india_eligible": true,
+        "note": "Only for Indian nationals. Strong alumni network and mentoring."
+      },
+      "eligibility": {
+        "citizenship": "Indian national only",
+        "degree": "Excellent academic record",
+        "universities": "Top-ranked UK and US institutions only (Russell Group / Ivy League equivalent)"
+      },
+      "application_window_months": [11, 12, 1, 2, 3],
+      "application_note": "Annual cycle — check inlaksfoundation.org for exact dates each year.",
+      "competition_level": "very_high",
+      "official_url": "https://www.inlaksfoundation.org/scholarships/",
+      "tips": "Highly prestigious Indian scholarship. Requires admission to a top-ranked university first. Strong academic record and personal statement are essential."
+    },
+
+    {
+      "id": "jn_tata_endowment",
+      "name": "JN Tata Endowment Loan Scholarship",
+      "country": "UK",
+      "funded_by": "JN Tata Endowment",
+      "administering_body": "JN Tata Endowment",
+      "type": "private_foundation",
+      "funding_level": "loan_scholarship",
+      "level_of_study": ["Masters", "PhD", "Postdoctoral"],
+      "subject_restriction": "Any subject at recognised overseas universities",
+      "eligible_subjects": ["All"],
+      "description": "Low-interest loan scholarship for Indian students pursuing Masters, Doctoral, and Postdoctoral courses abroad, including UK. Has helped 5,600+ students.",
+      "amount_summary": "Loan scholarship — low interest, repayable after study",
+      "covers": ["Partial tuition and living costs via low-interest loan"],
+      "amount_gbp_approx": 10000,
+      "eligible_nationalities": ["India"],
+      "india_specific": {
+        "india_eligible": true,
+        "note": "Only for Indian nationals. Strong legacy — one of oldest Indian overseas study scholarships."
+      },
+      "eligibility": {
+        "citizenship": "Indian national only",
+        "degree": "Good academic record",
+        "level": "Masters, Doctoral, or Postdoctoral"
+      },
+      "application_window_months": [12, 1, 2, 3],
+      "application_note": "Annual cycle — check jntataendowment.com for exact dates.",
+      "competition_level": "high",
+      "official_url": "https://www.jntataendowment.com/",
+      "tips": "Loan must be repaid but at very low interest. Good safety net if other scholarships don't come through."
+    },
+
+    {
+      "id": "charles_wallace_india_trust",
+      "name": "Charles Wallace India Trust Scholarships",
+      "country": "UK",
+      "funded_by": "Charles Wallace India Trust",
+      "administering_body": "Charles Wallace India Trust (British Council managed)",
+      "type": "private_foundation",
+      "funding_level": "partial",
+      "level_of_study": ["Short courses", "Residencies", "Fellowships"],
+      "subject_restriction": "Arts, Heritage conservation, Humanities, Music, Dance, Performing Arts, Creative fields",
+      "eligible_subjects": ["Arts", "Heritage Conservation", "Humanities", "Music", "Dance", "Performing Arts"],
+      "description": "Scholarships and fellowships for mid-career Indian professionals in arts, heritage conservation, and humanities for short-term training or residencies in the UK.",
+      "amount_summary": "Living costs + accommodation + travel",
+      "covers": ["Living allowance", "Accommodation", "International travel", "Course fees (where applicable)"],
+      "amount_gbp_approx": 8000,
+      "eligible_nationalities": ["India"],
+      "india_specific": {
+        "india_eligible": true,
+        "note": "Only for Indian nationals, preferably mid-career professionals aged late 20s to mid-40s."
+      },
+      "eligibility": {
+        "citizenship": "Indian national only",
+        "career_stage": "Mid-career professionals — late 20s to mid-40s preferred",
+        "subject": "Arts, heritage, humanities, creative fields"
+      },
+      "application_window_months": [10, 11, 12, 1, 2],
+      "competition_level": "medium",
+      "official_url": "https://www.britishcouncil.in/study-uk/scholarships/charles-wallace",
+      "tips": "Not for full degree programs — suited for specific training, residencies, or fellowships."
+    },
+
+    {
+      "id": "ucl_global_masters_scholarship",
+      "name": "UCL Global Masters Scholarship",
+      "country": "UK",
+      "university": "University College London (UCL)",
+      "funded_by": "UCL",
+      "administering_body": "UCL",
+      "type": "university",
+      "funding_level": "partial",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Any Masters program at UCL",
+      "eligible_subjects": ["All (at UCL)"],
+      "description": "£5,000 towards tuition fees for international Masters students at UCL. Merit-based award for first Masters application.",
+      "amount_summary": "£5,000",
+      "covers": ["Partial tuition fees"],
+      "amount_gbp_approx": 5000,
+      "eligible_nationalities": "All international students (India eligible)",
+      "india_specific": { "india_eligible": true },
+      "eligibility": {
+        "degree": "Academic merit — strong academic record",
+        "condition": "First Masters application only",
+        "level": "Masters at UCL"
+      },
+      "application_window_months": [1, 2],
+      "competition_level": "high",
+      "official_url": "https://www.ucl.ac.uk/scholarships/",
+      "tips": "Apply early — deadline is January annually. Strong academic profile required."
+    },
+
+    {
+      "id": "edinburgh_india_scholarship",
+      "name": "University of Edinburgh India Scholarship",
+      "country": "UK",
+      "university": "University of Edinburgh",
+      "funded_by": "University of Edinburgh",
+      "administering_body": "University of Edinburgh",
+      "type": "university",
+      "funding_level": "partial",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "On-campus PG Masters at Edinburgh",
+      "eligible_subjects": ["All on-campus PG Masters at Edinburgh"],
+      "description": "£5,000 towards tuition for gifted Indian international Masters students. Automatically considered when you apply — no separate application.",
+      "amount_summary": "£5,000 towards tuition",
+      "covers": ["Partial tuition fees"],
+      "amount_gbp_approx": 5000,
+      "eligible_nationalities": ["India"],
+      "india_specific": {
+        "india_eligible": true,
+        "note": "Only for Indian nationals. Automatic — no extra application needed."
+      },
+      "eligibility": {
+        "citizenship": "Indian citizen",
+        "level": "On-campus PG Masters at Edinburgh",
+        "condition": "Strong academic record — automatically assessed during admissions"
+      },
+      "application_window_months": [9, 10, 11, 12, 1, 2, 3, 4, 5],
+      "application_note": "Automatically considered when you apply to a Masters at Edinburgh. No separate scholarship application needed.",
+      "competition_level": "medium",
+      "official_url": "https://study.ed.ac.uk/postgraduate/fees-funding/scholarships",
+      "tips": "One of the best automatic scholarships for Indian students. Apply to Edinburgh Masters early to be considered."
+    },
+
+    {
+      "id": "edinburgh_women_stem_south_asia",
+      "name": "Women in STEM South Asia Scholarship (Edinburgh)",
+      "country": "UK",
+      "university": "University of Edinburgh",
+      "funded_by": "University of Edinburgh + British Council",
+      "administering_body": "University of Edinburgh",
+      "type": "university_british_council_joint",
+      "funding_level": "full",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "STEM Masters at University of Edinburgh only",
+      "eligible_subjects": ["STEM (Science, Technology, Engineering, Mathematics)"],
+      "description": "Fully funded scholarship for women from South Asia studying STEM Masters at the University of Edinburgh. Covers tuition and living expenses.",
+      "amount_summary": "Full funding (tuition + living allowance)",
+      "covers": ["Full tuition fees", "Living allowance"],
+      "amount_gbp_approx": 38000,
+      "eligible_nationalities": ["India", "Pakistan", "Sri Lanka", "Bangladesh", "Nepal"],
+      "india_specific": {
+        "india_eligible": true,
+        "note": "India is a priority country. Only for women from South Asia."
+      },
+      "eligibility": {
+        "gender": "Female applicants only",
+        "citizenship": "Citizen of India, Pakistan, Sri Lanka, Bangladesh, or Nepal",
+        "level": "STEM Masters at University of Edinburgh specifically",
+        "subject": "STEM fields only"
+      },
+      "application_window_months": [2, 3, 4, 5],
+      "competition_level": "very_high",
+      "official_url": "https://study.ed.ac.uk/postgraduate/fees-funding/scholarships",
+      "tips": "Highly competitive but extremely valuable if eligible. Requires STEM Masters at Edinburgh specifically."
+    },
+
+    {
+      "id": "manchester_global_futures_south_asia",
+      "name": "Global Futures Scholarship — South Asia (Manchester)",
+      "country": "UK",
+      "university": "University of Manchester",
+      "funded_by": "University of Manchester",
+      "administering_body": "University of Manchester",
+      "type": "university",
+      "funding_level": "partial",
+      "level_of_study": ["Undergraduate", "Masters"],
+      "subject_restriction": "Most UG and Masters programs at University of Manchester (excluding Medicine, Dentistry, Architecture)",
+      "eligible_subjects": ["All except Medicine, Dentistry, Architecture"],
+      "description": "£10,000 scholarship (per year for UG, one-time for Masters) for students from South Asia including India, Bangladesh, Pakistan, Sri Lanka.",
+      "amount_summary": "£10,000 (UG: per year for 3 years; Masters: £10,000 one-time)",
+      "covers": ["Partial tuition fees — £10,000"],
+      "amount_gbp_approx": 10000,
+      "eligible_nationalities": ["India", "Bangladesh", "Pakistan", "Sri Lanka"],
+      "india_specific": {
+        "india_eligible": true,
+        "note": "India is a primary eligible country."
+      },
+      "eligibility": {
+        "citizenship": "Domiciled in India, Bangladesh, Pakistan, or Sri Lanka",
+        "condition": "Must have applied and received a conditional or unconditional offer",
+        "funding": "Must be self-funded (not sponsored)",
+        "exclusions": "Medicine, Dentistry, Architecture not eligible"
+      },
+      "application_window_months": [1, 2, 3, 4, 5],
+      "application_note": "Application form emailed automatically after receiving a course offer. No need to seek it separately.",
+      "competition_level": "medium",
+      "official_url": "https://www.manchester.ac.uk/study/international/country-specific-information/india/scholarships/",
+      "tips": "One of the most accessible major UK scholarships for Indian students. Available to both UG and Masters applicants. Apply to Manchester early."
+    },
+
+    {
+      "id": "nottingham_developing_solutions",
+      "name": "Nottingham Developing Solutions Scholarship",
+      "country": "UK",
+      "university": "University of Nottingham",
+      "funded_by": "University of Nottingham",
+      "administering_body": "University of Nottingham",
+      "type": "university",
+      "funding_level": "partial_or_full",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Most Masters programs — some exclusions. Check university website.",
+      "eligible_subjects": ["Most subjects — check individual program eligibility"],
+      "description": "50% or 100% tuition waiver for students from developing countries including India. One of the most generous university scholarships in the UK.",
+      "amount_summary": "50% or 100% tuition waiver",
+      "covers": ["50% or 100% tuition fees depending on award band"],
+      "amount_gbp_approx": 15000,
+      "eligible_nationalities": ["India", "and other developing countries — check official list"],
+      "india_specific": {
+        "india_eligible": true,
+        "note": "India is an eligible country."
+      },
+      "eligibility": {
+        "citizenship": "Must be from a developing country — India eligible",
+        "degree": "Strong academic record — first class preferred",
+        "level": "Masters at University of Nottingham"
+      },
+      "application_window_months": [1, 2, 3],
+      "application_note": "Deadline typically February each year. Separate application required.",
+      "competition_level": "high",
+      "official_url": "https://www.nottingham.ac.uk/scholarships/",
+      "tips": "Very competitive but one of the most generous university scholarships in the UK for developing country students."
+    },
+
+    {
+      "id": "bristol_think_big",
+      "name": "Think Big Scholarship (Bristol)",
+      "country": "UK",
+      "university": "University of Bristol",
+      "funded_by": "University of Bristol",
+      "administering_body": "University of Bristol",
+      "type": "university",
+      "funding_level": "partial",
+      "level_of_study": ["Undergraduate", "Masters"],
+      "subject_restriction": "Most programs at Bristol — check specific program",
+      "eligible_subjects": ["All (most programs at Bristol)"],
+      "description": "Up to £20,000 towards tuition for international students at the University of Bristol. Available for both UG and PG students.",
+      "amount_summary": "Up to £20,000 towards tuition",
+      "covers": ["Partial tuition fees — up to £20,000"],
+      "amount_gbp_approx": 20000,
+      "eligible_nationalities": "All international students (India eligible)",
+      "india_specific": { "india_eligible": true },
+      "eligibility": {
+        "citizenship": "International students",
+        "degree": "Academic excellence",
+        "level": "UG and PG"
+      },
+      "application_window_months": [2, 3, 6],
+      "application_note": "Two deadlines: February and June each year.",
+      "competition_level": "high",
+      "official_url": "https://www.bristol.ac.uk/fees-funding/",
+      "tips": "Apply in February for priority consideration. GREAT Scholarship also available at Bristol — can be combined in some cases."
+    },
+
+    {
+      "id": "queens_belfast_vice_chancellors",
+      "name": "Vice-Chancellor's International Scholarship (Queen's Belfast)",
+      "country": "UK",
+      "university": "Queen's University Belfast",
+      "funded_by": "Queen's University Belfast",
+      "administering_body": "Queen's University Belfast",
+      "type": "university",
+      "funding_level": "partial",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Most Masters programs at Queen's Belfast",
+      "eligible_subjects": ["All (most programs at Queen's Belfast)"],
+      "description": "£3,000 merit-based scholarship for international Masters students at Queen's University Belfast. One of UK's most affordable Russell Group universities.",
+      "amount_summary": "£3,000",
+      "covers": ["Partial tuition fees"],
+      "amount_gbp_approx": 3000,
+      "eligible_nationalities": "All international students (India eligible)",
+      "india_specific": { "india_eligible": true },
+      "eligibility": {
+        "citizenship": "International students",
+        "degree": "Merit-based — strong academic record",
+        "level": "Masters at Queen's University Belfast"
+      },
+      "application_window_months": [3, 4, 5, 6],
+      "competition_level": "medium",
+      "official_url": "https://www.qub.ac.uk/directorates/sgc/scholarships/",
+      "tips": "Belfast has the lowest cost of living in the UK — combine this scholarship with affordable living to maximise value. Also eligible for GREAT Scholarship."
+    },
+
+    {
+      "id": "goi_ies_ireland",
+      "name": "Government of Ireland International Education Scholarship (GOI-IES)",
+      "country": "Ireland",
+      "funded_by": "Government of Ireland + Irish Higher Education Institutions (HEIs)",
+      "administering_body": "Higher Education Authority (HEA)",
+      "type": "government",
+      "funding_level": "full",
+      "level_of_study": ["Masters", "Postgraduate Diploma", "PhD"],
+      "subject_restriction": "All subjects at eligible Irish HEIs — check institution-specific eligible programs",
+      "eligible_subjects": ["All (check individual HEI for eligible programs)"],
+      "description": "60 fully funded scholarships per year for outstanding non-EU/EEA international students studying Masters or PhD in Ireland. Full tuition waiver + €10,000 stipend. One of the best scholarships for studying in Ireland.",
+      "amount_summary": "Full tuition waiver + €10,000 stipend",
+      "covers": [
+        "Full tuition fees (waived by host institution)",
+        "€10,000 annual stipend for living expenses"
+      ],
+      "amount_eur_approx": 34000,
+      "amount_gbp_approx": 29000,
+      "eligible_nationalities": "All non-EU/EEA countries excluding Switzerland and UK — India eligible",
+      "india_specific": {
+        "india_eligible": true,
+        "note": "India is an eligible country. 60 scholarships across all Irish HEIs — competitive."
+      },
+      "eligibility": {
+        "citizenship": "Non-EU/EEA, non-Swiss, non-UK domicile of origin — India eligible",
+        "offer_required": "Must have a conditional or unconditional offer from an eligible Irish HEI at time of applying",
+        "level": "Masters, Postgraduate Diploma, or PhD",
+        "previous_holder": "Cannot apply if previously awarded a GOI-IES scholarship",
+        "excluded": "Russian and Belarusian nationals are not eligible"
+      },
+      "eligible_institutions": [
+        "Trinity College Dublin (TCD)",
+        "University College Dublin (UCD)",
+        "University College Cork (UCC)",
+        "University of Galway",
+        "University of Limerick (UL)",
+        "Dublin City University (DCU)",
+        "Maynooth University",
+        "and other eligible Irish HEIs — see official HEA list"
+      ],
+      "application_cycle_2026_27": {
+        "opens": "January 29, 2026",
+        "deadline": "March 12, 2026 at 5pm Irish time",
+        "results": "Early June 2026"
+      },
+      "application_window_months": [1, 2, 3],
+      "application_note": "Must secure an offer from an eligible Irish university FIRST, then apply via the HEA GOI-IES online portal. Only one application per candidate. Two references required.",
+      "competition_level": "very_high",
+      "official_url": "https://hea.ie/policy/internationalisation/goi-ies/",
+      "tips": "Apply to Irish universities as early as possible — getting an offer before the March 12 deadline is critical. Strong academic record plus compelling personal statement needed. Priority given to candidates from low/lower-middle income World Bank countries."
+    },
+
+    {
+      "id": "ireland_fellows_programme",
+      "name": "Ireland Fellows Programme",
+      "country": "Ireland",
+      "funded_by": "Irish Aid (Government of Ireland)",
+      "administering_body": "Irish Aid",
+      "type": "government",
+      "funding_level": "full",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Priority areas: Agriculture, food security, health, governance, education, environment",
+      "eligible_subjects": ["Agriculture", "Food Security", "Health", "Governance", "Education", "Environment"],
+      "description": "Fully funded fellowships for candidates from select developing countries for Masters study in Ireland. Part of Ireland's overseas development aid programme.",
+      "amount_summary": "Full funding — all costs covered",
+      "covers": [
+        "Full tuition fees",
+        "Monthly stipend",
+        "Travel costs",
+        "Health insurance"
+      ],
+      "amount_eur_approx": 30000,
+      "eligible_nationalities": "Specific developing countries — check official list (India may be eligible for some cohorts)",
+      "india_specific": {
+        "india_eligible": "Check official list — India's eligibility may vary by year",
+        "note": "This programme targets specific developing countries. Confirm India's eligibility for current year."
+      },
+      "eligibility": {
+        "citizenship": "Citizen of an eligible developing country",
+        "experience": "Typically requires relevant work experience",
+        "level": "Masters only"
+      },
+      "application_window_months": [1, 2, 3, 4],
+      "competition_level": "high",
+      "official_url": "https://www.irishaidfellows.gov.ie/",
+      "tips": "Check eligibility list each year — countries rotate. Strong development sector background helps."
+    },
+
+    {
+      "id": "tcd_global_excellence",
+      "name": "TCD Global Excellence Scholarship",
+      "country": "Ireland",
+      "university": "Trinity College Dublin (TCD)",
+      "funded_by": "Trinity College Dublin",
+      "administering_body": "TCD",
+      "type": "university",
+      "funding_level": "partial",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Most Masters programs at Trinity College Dublin",
+      "eligible_subjects": ["All (most programs at TCD)"],
+      "description": "€5,000 towards tuition for academically excellent international Masters students at Trinity College Dublin.",
+      "amount_summary": "€5,000 towards tuition",
+      "covers": ["Partial tuition fees"],
+      "amount_eur_approx": 5000,
+      "amount_gbp_approx": 4200,
+      "eligible_nationalities": "All international students (India eligible)",
+      "india_specific": { "india_eligible": true },
+      "eligibility": {
+        "citizenship": "International students (non-EU fee status)",
+        "degree": "Academic merit — strong academic record",
+        "level": "Masters at Trinity College Dublin"
+      },
+      "application_window_months": [1, 2, 3, 4],
+      "competition_level": "medium",
+      "official_url": "https://www.tcd.ie/study/scholarships/",
+      "tips": "Can be combined with GOI-IES in some cases. Apply to TCD early."
+    },
+
+    {
+      "id": "ucd_global_excellence",
+      "name": "UCD Global Excellence Scholarship",
+      "country": "Ireland",
+      "university": "University College Dublin (UCD)",
+      "funded_by": "University College Dublin",
+      "administering_body": "UCD",
+      "type": "university",
+      "funding_level": "partial",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Most Masters programs at UCD",
+      "eligible_subjects": ["All (most programs at UCD)"],
+      "description": "€3,000 towards tuition for academically excellent international Masters students at UCD.",
+      "amount_summary": "€3,000 towards tuition",
+      "covers": ["Partial tuition fees"],
+      "amount_eur_approx": 3000,
+      "amount_gbp_approx": 2500,
+      "eligible_nationalities": "All international students (India eligible)",
+      "india_specific": { "india_eligible": true },
+      "eligibility": {
+        "citizenship": "International students",
+        "degree": "Academic excellence",
+        "level": "Masters at UCD"
+      },
+      "application_window_months": [3, 4, 5, 6],
+      "competition_level": "medium",
+      "official_url": "https://www.ucd.ie/global/scholarshipsfinances/",
+      "tips": "UCD is Ireland's top university for graduate employment. Tech giants nearby in Dublin's Silicon Docks."
+    },
+
+    {
+      "id": "ucc_international_scholarship",
+      "name": "UCC International Scholarship",
+      "country": "Ireland",
+      "university": "University College Cork (UCC)",
+      "funded_by": "University College Cork",
+      "administering_body": "UCC",
+      "type": "university",
+      "funding_level": "partial",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "Most Masters programs at UCC",
+      "eligible_subjects": ["All (most programs at UCC)"],
+      "description": "€2,000 merit-based scholarship for international Masters students at UCC. More affordable university with lower living costs than Dublin.",
+      "amount_summary": "€2,000 towards tuition",
+      "covers": ["Partial tuition fees"],
+      "amount_eur_approx": 2000,
+      "amount_gbp_approx": 1700,
+      "eligible_nationalities": "All international students (India eligible)",
+      "india_specific": { "india_eligible": true },
+      "eligibility": {
+        "citizenship": "International students",
+        "degree": "Academic merit",
+        "level": "Masters at UCC"
+      },
+      "application_window_months": [4, 5, 6, 7],
+      "competition_level": "low_medium",
+      "official_url": "https://www.ucc.ie/en/scholarships/",
+      "tips": "Cork is more affordable than Dublin. Apple and Amazon offices nearby. UCC is Ireland's first 5-star university."
+    },
+
+    {
+      "id": "heriot_watt_dubai_merit",
+      "name": "Heriot-Watt University Dubai Merit Scholarship",
+      "country": "UAE",
+      "university": "Heriot-Watt University Dubai",
+      "funded_by": "Heriot-Watt University Dubai",
+      "administering_body": "Heriot-Watt Dubai",
+      "type": "university",
+      "funding_level": "partial",
+      "level_of_study": ["Undergraduate", "Masters"],
+      "subject_restriction": "All programs at Heriot-Watt Dubai",
+      "eligible_subjects": ["All (at Heriot-Watt Dubai)"],
+      "description": "Tuition fee reduction based on academic performance. Percentage discount varies by grade band. Available for both UG and PG students.",
+      "amount_summary": "Tuition fee reduction (% based on grades)",
+      "covers": ["Partial tuition fee reduction"],
+      "amount_aed_approx": null,
+      "amount_note": "Percentage-based discount on tuition — varies by grade band",
+      "eligible_nationalities": "All nationalities (India eligible)",
+      "india_specific": { "india_eligible": true },
+      "eligibility": {
+        "citizenship": "All nationalities",
+        "degree": "Strong academic record — higher discount for higher grades",
+        "level": "UG or Masters at Heriot-Watt Dubai"
+      },
+      "application_window_months": [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      "application_note": "Applied automatically during admissions based on academic grades. Also check for specific scholarship windows.",
+      "competition_level": "low_medium",
+      "official_url": "https://www.hw.ac.uk/dubai/study/fees-and-funding",
+      "tips": "Dubai campus offers the same UK degree as Edinburgh campus but at lower cost and in a tax-free environment. Good for those who want a UK degree without living in the UK."
+    },
+
+    {
+      "id": "birmingham_dubai_merit",
+      "name": "University of Birmingham Dubai Merit Scholarship",
+      "country": "UAE",
+      "university": "University of Birmingham Dubai",
+      "funded_by": "University of Birmingham Dubai",
+      "administering_body": "UoB Dubai",
+      "type": "university",
+      "funding_level": "partial",
+      "level_of_study": ["Masters"],
+      "subject_restriction": "All programs at University of Birmingham Dubai",
+      "eligible_subjects": ["All (at UoB Dubai)"],
+      "description": "Partial tuition reduction for high-achieving international Masters students at the University of Birmingham Dubai campus.",
+      "amount_summary": "Partial tuition reduction — varies",
+      "covers": ["Partial tuition fees"],
+      "amount_aed_approx": null,
+      "amount_note": "Partial reduction — contact admissions for exact amounts",
+      "eligible_nationalities": "All nationalities (India eligible)",
+      "india_specific": { "india_eligible": true },
+      "eligibility": {
+        "citizenship": "All nationalities",
+        "degree": "Strong academic record",
+        "level": "Masters at UoB Dubai"
+      },
+      "application_window_months": [1, 2, 3, 4, 5, 6, 7, 8],
+      "competition_level": "medium",
+      "official_url": "https://www.birmingham.ac.uk/dubai/study/fees-and-funding",
+      "tips": "Full Russell Group campus in Dubai. Same degree as UK Birmingham. Better choice for students wanting Russell Group quality in the Middle East."
+    }
+
+  ],
+
+  "quick_reference": {
+    "fully_funded_uk": ["chevening", "commonwealth_masters_scholarship", "gates_cambridge_scholarship", "clarendon_fund_oxford", "weidenfeld_hoffmann_oxford", "inlaks_scholarship", "edinburgh_women_stem_south_asia"],
+    "partially_funded_uk": ["great_scholarships_uk", "scotland_saltire_scholarship", "ucl_global_masters_scholarship", "edinburgh_india_scholarship", "manchester_global_futures_south_asia", "nottingham_developing_solutions", "bristol_think_big", "queens_belfast_vice_chancellors"],
+    "fully_funded_ireland": ["goi_ies_ireland", "ireland_fellows_programme"],
+    "partially_funded_ireland": ["tcd_global_excellence", "ucd_global_excellence", "ucc_international_scholarship"],
+    "dubai_scholarships": ["heriot_watt_dubai_merit", "birmingham_dubai_merit"],
+    "no_work_experience_required": ["great_scholarships_uk", "scotland_saltire_scholarship", "ucl_global_masters_scholarship", "edinburgh_india_scholarship", "goi_ies_ireland", "tcd_global_excellence", "ucd_global_excellence", "ucc_international_scholarship"],
+    "requires_work_experience": ["chevening"],
+    "india_only": ["edinburgh_india_scholarship", "edinburgh_women_stem_south_asia", "inlaks_scholarship", "jn_tata_endowment", "charles_wallace_india_trust"],
+    "women_only": ["edinburgh_women_stem_south_asia"],
+    "stem_specific": ["edinburgh_women_stem_south_asia", "scotland_saltire_scholarship"],
+    "application_window_by_month": {
+      "august_october": ["chevening", "clarendon_fund_oxford", "weidenfeld_hoffmann_oxford", "gates_cambridge_scholarship"],
+      "october_december": ["commonwealth_masters_scholarship", "charles_wallace_india_trust", "jn_tata_endowment"],
+      "january_march": ["goi_ies_ireland", "great_scholarships_uk", "scotland_saltire_scholarship", "nottingham_developing_solutions", "manchester_global_futures_south_asia"],
+      "march_june": ["tcd_global_excellence", "ucd_global_excellence", "ucc_international_scholarship", "bristol_think_big", "queens_belfast_vice_chancellors", "edinburgh_india_scholarship"]
+    },
+    "by_budget_band_inr": {
+      "no_cost": ["goi_ies_ireland", "chevening", "commonwealth_masters_scholarship", "edinburgh_women_stem_south_asia"],
+      "reduces_cost_significantly": ["great_scholarships_uk", "scotland_saltire_scholarship", "nottingham_developing_solutions", "manchester_global_futures_south_asia", "bristol_think_big"],
+      "small_top_up": ["edinburgh_india_scholarship", "ucl_global_masters_scholarship", "tcd_global_excellence", "ucd_global_excellence", "ucc_international_scholarship"]
+    }
+  }
+}

@@ -23,27 +23,34 @@
   --color-fateh-muted: #6b7080;
   --color-fateh-border: #e0d9ce;
   --color-fateh-accent: #1a3560;
+  --color-fateh-border: #e0d9ce;
 }
 
 @layer base {
-  html,
+  * {
+    @apply border-fateh-border;
+  }
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
   body {
     background-color: var(--color-fateh-paper);
     color: var(--color-fateh-ink);
-    @apply font-fateh-sans overflow-x-hidden antialiased;
+    @apply font-fateh-sans overflow-x-hidden;
     margin: 0;
     min-height: 100vh;
-    font-size: 16px;
-    line-height: 1.7;
   }
 }
 
+/* Optimize Spline Rendering */
 spline-viewer {
   width: 100%;
   height: 100%;
   display: block;
   --spline-canvas-background: transparent;
-  /* Some viewer builds respect this; definitive fix is export → Viewer → Logo: No in Spline */
   --logo-display: none;
 }
 

@@ -36,9 +36,8 @@ const SERVICES = [
 
 const Services = () => {
   return (
-    <section id="services" className="bg-fateh-gold-pale px-6 py-20 md:px-10 lg:py-24">
+    <section id="services" className="px-6 py-20 md:px-10 lg:py-24">
       <div className="mx-auto max-w-[1920px]">
-        <p className="text-[0.72rem] uppercase tracking-[0.18em] text-fateh-gold">What We Do</p>
         <h2 className="mt-3 mb-12 max-w-[32ch] font-fateh-serif text-[clamp(1.75rem,3vw,2.75rem)] font-semibold leading-tight text-fateh-ink normal-case lg:mb-16">
           End-to-end support for your entire study abroad journey.
         </h2>
@@ -50,13 +49,17 @@ const Services = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.06 }}
-              className="rounded bg-white p-8 shadow-sm"
+              className="border border-white/40 bg-white/40 p-8 shadow-sm backdrop-blur-md"
             >
-              <div className="font-fateh-serif text-5xl font-semibold leading-none text-fateh-border">
+              <div className="font-fateh-serif text-5xl font-semibold leading-none text-fateh-gold/80">
                 {s.n}
               </div>
-              <h3 className="mt-4 text-base font-medium text-fateh-ink normal-case">{s.title}</h3>
-              <p className="mt-2 text-[0.875rem] leading-relaxed text-fateh-muted">{s.desc}</p>
+              <h3 className="mt-4 text-base font-semibold text-fateh-ink normal-case">
+                {s.title}
+              </h3>
+              <p className="mt-2 text-[0.875rem] leading-relaxed text-fateh-muted">
+                {s.desc}
+              </p>
             </motion.article>
           ))}
         </div>
