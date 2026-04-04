@@ -43,7 +43,11 @@ class Settings(BaseSettings):
     # ─── Featherless.ai (LLM) ───
     FEATHERLESS_API_KEY: str
     FEATHERLESS_MODEL: str = Field(default="meta-llama/Llama-3.1-8B-Instruct")
+    FEATHERLESS_FAST_MODEL: str = Field(default="Qwen/Qwen2.5-3B-Instruct")
     FEATHERLESS_BASE_URL: str = Field(default="https://api.featherless.ai/v1")
+    LLM_STREAM: bool = Field(default=True)
+    LLM_MAX_TOKENS: int = Field(default=150)
+    LLM_FIRST_SENTENCE_TOKEN_BUDGET: int = Field(default=60)
 
     # ─── Supabase ───
     SUPABASE_URL: str
@@ -59,6 +63,8 @@ class Settings(BaseSettings):
     WEBHOOK_STT_TIMEOUT_SEC: int = Field(default=4)
     WEBHOOK_STT_MAX_CONTRACTS: int = Field(default=2)
     ASYNC_REPLY_CACHE_TTL_SEC: int = Field(default=120)
+    ORCHESTRATOR_INLINE_ENABLED: bool = Field(default=True)
+    ORCHESTRATOR_INLINE_TIMEOUT_SEC: float = Field(default=5.0)
     TWILIO_RECORDING_DEDUPE_TTL_SEC: int = Field(default=600)
     MAX_TURNS_PER_CALL: int = Field(default=4)
     STT_REPROMPT_LIMIT: int = Field(default=2)

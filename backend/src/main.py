@@ -16,6 +16,7 @@ from src.routes.dashboard import router as dashboard_router
 from src.routes.leads import router as leads_router
 from src.routes.sessions import router as sessions_router
 from src.routes.health import router as health_router
+from src.services.stt.sarvam import close_stt_http_client
 from src.services.transcription.live_stream import set_sio
 from src.cron.exchange_rates import refresh_rates
 from src.cron.visa_fees import seed_visa_data
@@ -108,6 +109,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    await close_stt_http_client()
     scheduler.shutdown(wait=False)
     logger.info("Scheduler shut down")
 

@@ -208,8 +208,8 @@ def _say(text: str, lang: str) -> str:
 def _record(lang: str) -> str:
     action = _build_url(_twilio_path("/process-recording"), {"lang": lang})
     return (
-        f'<Record action="{action}" method="POST" maxLength="25" '
-        f'timeout="6" playBeep="true" trim="trim-silence" actionOnEmptyResult="true"/>'
+        f'<Record action="{action}" method="POST" maxLength="15" '
+        f'timeout="3" playBeep="true" trim="trim-silence" actionOnEmptyResult="true"/>'
     )
 
 
@@ -371,6 +371,9 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
     download_ms = 0
     stt_ms = 0
     enqueue_ms = 0
+    inline_orchestrator_ms = 0
+    reply_source = "none"
+    reply_text = ""
 
     try:
         # Download recording from Twilio
@@ -425,9 +428,56 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
 
         logger.info(f"Transcript received | CallSid={call_sid} lang={language} text={transcript[:100]}")
 
-        enqueue_started = perf_counter()
-        _schedule_turn_processing(state, transcript, language)
-        enqueue_ms = int((perf_counter() - enqueue_started) * 1000)
+        async def _generate_inline_reply() -> str:
+            if state.get("session_id"):
+                result = await process_turn(state, transcript)
+                return result.reply
+            analysis_obj = analyze_transcript(transcript, language)
+            return await generate_simple_reply(transcript, language, analysis_obj.dict())
+
+        if env.ORCHESTRATOR_INLINE_ENABLED:
+            inline_started = perf_counter()
+            try:
+                inline_reply = await asyncio.wait_for(
+                    _generate_inline_reply(),
+                    timeout=env.ORCHESTRATOR_INLINE_TIMEOUT_SEC,
+                )
+                inline_orchestrator_ms = int((perf_counter() - inline_started) * 1000)
+                reply_text = (inline_reply or "").strip() or FALLBACK_REPLY[language]
+                reply_source = "inline"
+            except asyncio.TimeoutError:
+                inline_orchestrator_ms = int((perf_counter() - inline_started) * 1000)
+                enqueue_started = perf_counter()
+                _schedule_turn_processing(state, transcript, language)
+                enqueue_ms = int((perf_counter() - enqueue_started) * 1000)
+                reply_text = PROCESSING_REPLY[language]
+                reply_source = "timeout_fallback"
+                logger.warning(
+                    "Inline orchestrator timed out; falling back to queued processing | "
+                    f"CallSid={call_sid} timeout={env.ORCHESTRATOR_INLINE_TIMEOUT_SEC}s"
+                )
+            except Exception as inline_exc:
+                inline_orchestrator_ms = int((perf_counter() - inline_started) * 1000)
+                enqueue_started = perf_counter()
+                _schedule_turn_processing(state, transcript, language)
+                enqueue_ms = int((perf_counter() - enqueue_started) * 1000)
+                reply_text = PROCESSING_REPLY[language]
+                reply_source = "inline_error_fallback"
+                logger.error(
+                    "Inline orchestrator failed; falling back to queued processing | "
+                    f"CallSid={call_sid} err={inline_exc}"
+                )
+        else:
+            enqueue_started = perf_counter()
+            _schedule_turn_processing(state, transcript, language)
+            enqueue_ms = int((perf_counter() - enqueue_started) * 1000)
+            replay = await _pop_pending_reply(call_sid)
+            if replay:
+                reply_text = replay
+                reply_source = "queue_replay"
+            else:
+                reply_text = PROCESSING_REPLY[language]
+                reply_source = "queue_processing"
     except Exception as exc:
         logger.error(f"Processing error | CallSid={call_sid}: {exc}")
         replay = await _pop_pending_reply(call_sid)
@@ -441,14 +491,12 @@ async def process_recording(request: Request, lang: str = Query(default="en-IN")
 
     state["turns"] = state.get("turns", 0) + 1
     CALL_STATE[call_sid] = state
-    reply_text = await _pop_pending_reply(call_sid)
-    if not reply_text:
-        reply_text = PROCESSING_REPLY[language]
 
     total_ms = int((perf_counter() - started) * 1000)
     logger.info(
         f"process_recording timings | CallSid={call_sid} "
-        f"download_ms={download_ms} stt_ms={stt_ms} enqueue_ms={enqueue_ms} total_ms={total_ms}"
+        f"download_ms={download_ms} stt_ms={stt_ms} inline_orchestrator_ms={inline_orchestrator_ms} "
+        f"enqueue_ms={enqueue_ms} reply_source={reply_source} total_ms={total_ms}"
     )
 
     # Check if max turns reached

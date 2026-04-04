@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any, Dict
 
+from src.config.env import env
 from src.services.voice_agent.intent_classifier import analyze_transcript, classify_intent
 from src.services.voice_agent.language_detector import detect_language_from_text
 from src.services.voice_agent.persona_engine import detect_persona, get_persona_instructions
@@ -65,33 +66,42 @@ async def process_turn(
     state: Dict[str, Any],
     transcript: str,
 ) -> ProcessTurnResult:
-    t0 = time.time()
+    t0 = perf_counter()
 
     try:
         lang: Language = state.get("language", "en-IN")
         session_id: str = state["session_id"]
-
-        # Broadcast student transcript to dashboard
-        await broadcast_transcript(session_id, transcript, True, "student")
+        model = env.FEATHERLESS_FAST_MODEL or env.FEATHERLESS_MODEL
+        timings: Dict[str, int] = {}
 
         # Step 1: Analyze transcript (intent, sentiment, entities)
+        analyze_started = perf_counter()
         analysis = analyze_transcript(transcript, lang)
+        timings["analyze_ms"] = int((perf_counter() - analyze_started) * 1000)
 
         # Step 2: Detect language from text (may override IVR selection)
+        detect_started = perf_counter()
         detected_lang = detect_language_from_text(transcript)
+        timings["language_ms"] = int((perf_counter() - detect_started) * 1000)
 
-        # Step 3: Retrieve KB chunks and live data in parallel
-        kb_chunks, live_data = await asyncio.gather(
+        # Step 3: Broadcast student transcript + retrieve KB chunks + live cache in parallel
+        prefetch_started = perf_counter()
+        kb_chunks, live_data, _ = await asyncio.gather(
             retrieve_kb(transcript, 5),
             inject_live_data(analysis.intent),
+            broadcast_transcript(session_id, transcript, True, "student"),
         )
+        timings["prefetch_ms"] = int((perf_counter() - prefetch_started) * 1000)
 
         # Step 4: Detect persona
+        persona_started = perf_counter()
         history = state.get("conversation_history", [])
         persona = detect_persona(history, transcript)
         persona_instructions = get_persona_instructions(persona)
+        timings["persona_ms"] = int((perf_counter() - persona_started) * 1000)
 
         # Step 5: Assemble full prompt
+        prompt_started = perf_counter()
         system_prompt = assemble_prompt(
             lang=detected_lang or lang,
             intent=analysis.intent,
@@ -102,6 +112,7 @@ async def process_turn(
             persona_instructions=persona_instructions,
             session_id=session_id,
         )
+        timings["prompt_ms"] = int((perf_counter() - prompt_started) * 1000)
 
         # Step 6: Generate LLM response
         messages = [
@@ -109,7 +120,9 @@ async def process_turn(
             for h in history
         ] + [{"role": "user", "content": transcript}]
 
+        llm_started = perf_counter()
         reply = await generate_reply(system_prompt, messages[-10:])  # Last 5 exchanges
+        timings["llm_ms"] = int((perf_counter() - llm_started) * 1000)
 
         # Step 7: Update conversation history
         history.append({"role": "user", "content": transcript})
@@ -119,7 +132,9 @@ async def process_turn(
         state["conversation_history"] = history
 
         # Step 8: Broadcast AI response
+        ai_broadcast_started = perf_counter()
         await broadcast_transcript(session_id, reply, True, "ai")
+        timings["ai_broadcast_ms"] = int((perf_counter() - ai_broadcast_started) * 1000)
 
         # Step 9: Extract lead data & score (fire-and-forget background task)
         async def _post_process():
@@ -188,10 +203,20 @@ async def process_turn(
 
         asyncio.create_task(_post_process())
 
-        latency_ms = int((time.time() - t0) * 1000)
+        latency_ms = int((perf_counter() - t0) * 1000)
+        timings["total_ms"] = latency_ms
         logger.info(
-            f"Turn processed | call_sid={state.get('call_sid')} "
-            f"latency={latency_ms}ms intent={analysis.intent} lang={lang}"
+            "Turn processed | "
+            f"call_sid={state.get('call_sid')} intent={analysis.intent} lang={lang} "
+            f"model={model} kb_chunks={len(kb_chunks)} "
+            f"analyze_ms={timings.get('analyze_ms', 0)} "
+            f"language_ms={timings.get('language_ms', 0)} "
+            f"prefetch_ms={timings.get('prefetch_ms', 0)} "
+            f"persona_ms={timings.get('persona_ms', 0)} "
+            f"prompt_ms={timings.get('prompt_ms', 0)} "
+            f"llm_ms={timings.get('llm_ms', 0)} "
+            f"ai_broadcast_ms={timings.get('ai_broadcast_ms', 0)} "
+            f"total_ms={timings.get('total_ms', 0)}"
         )
         return ProcessTurnResult(reply=reply, analysis=analysis.dict())
 

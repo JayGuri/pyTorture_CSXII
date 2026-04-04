@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, Dict, List
@@ -9,6 +10,9 @@ import httpx
 from src.config.env import env
 from src.utils.logger import logger
 
+_stt_http_client: httpx.AsyncClient | None = None
+_stt_http_client_lock = asyncio.Lock()
+
 @dataclass(frozen=True)
 class STTContract:
     name: str
@@ -16,6 +20,26 @@ class STTContract:
     auth_header: str
     model: str
     language_field: str
+
+
+async def _get_stt_http_client() -> httpx.AsyncClient:
+    global _stt_http_client
+
+    if _stt_http_client is None:
+        async with _stt_http_client_lock:
+            if _stt_http_client is None:
+                limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
+                _stt_http_client = httpx.AsyncClient(timeout=env.HTTP_TIMEOUT_SEC, limits=limits)
+    return _stt_http_client
+
+
+async def close_stt_http_client() -> None:
+    global _stt_http_client
+
+    client = _stt_http_client
+    _stt_http_client = None
+    if client is not None:
+        await client.aclose()
 
 
 def _build_auth_headers(header_name: str) -> Dict[str, str]:
@@ -149,79 +173,80 @@ async def transcribe_audio(
     last_detail = ""
 
     request_timeout = timeout_sec if timeout_sec and timeout_sec > 0 else env.HTTP_TIMEOUT_SEC
+    client = await _get_stt_http_client()
 
-    async with httpx.AsyncClient(timeout=request_timeout) as client:
-        for contract in contracts:
-            files = {
-                "file": ("call_audio.wav", audio_bytes, "audio/wav"),
-            }
-            data = {
-                "model": contract.model,
-                contract.language_field: language_code,
-            }
+    for contract in contracts:
+        files = {
+            "file": ("call_audio.wav", audio_bytes, "audio/wav"),
+        }
+        data = {
+            "model": contract.model,
+            contract.language_field: language_code,
+        }
 
-            started = perf_counter()
-            try:
-                response = await client.post(
-                    contract.endpoint,
-                    files=files,
-                    data=data,
-                    headers=_build_auth_headers(contract.auth_header),
-                )
-                latency_ms = int((perf_counter() - started) * 1000)
+        started = perf_counter()
+        try:
+            response = await client.post(
+                contract.endpoint,
+                files=files,
+                data=data,
+                headers=_build_auth_headers(contract.auth_header),
+                timeout=request_timeout,
+            )
+            latency_ms = int((perf_counter() - started) * 1000)
 
-                if response.status_code >= 400:
-                    snippet = _safe_response_snippet(response)
-                    last_reason = f"http_{response.status_code}"
-                    last_detail = snippet
-                    logger.warning(
-                        "Sarvam STT attempt failed | "
-                        f"contract={contract.name} endpoint={contract.endpoint} "
-                        f"auth={_auth_mode_label(contract.auth_header)} model={contract.model} "
-                        f"lang_field={contract.language_field} status={response.status_code} "
-                        f"latency_ms={latency_ms} body={snippet}"
-                    )
-                    continue
-
-                payload = response.json()
-                transcript = _find_first_text(payload)
-                if transcript:
-                    logger.info(
-                        "Sarvam STT success | "
-                        f"contract={contract.name} endpoint={contract.endpoint} "
-                        f"model={contract.model} latency_ms={latency_ms} transcript={transcript[:100]}"
-                    )
-                    return transcript
-
-                last_reason = "empty_transcript"
-                last_detail = f"status={response.status_code}"
+            if response.status_code >= 400:
+                snippet = _safe_response_snippet(response)
+                last_reason = f"http_{response.status_code}"
+                last_detail = snippet
                 logger.warning(
-                    "Sarvam STT empty transcript | "
+                    "Sarvam STT attempt failed | "
                     f"contract={contract.name} endpoint={contract.endpoint} "
-                    f"model={contract.model} latency_ms={latency_ms} payload_type={type(payload).__name__}"
+                    f"auth={_auth_mode_label(contract.auth_header)} model={contract.model} "
+                    f"lang_field={contract.language_field} status={response.status_code} "
+                    f"latency_ms={latency_ms} body={snippet}"
                 )
-            except httpx.RequestError as exc:
-                last_reason = "request_error"
-                last_detail = str(exc)
-                logger.warning(
-                    "Sarvam STT request failed | "
+                continue
+
+            payload = response.json()
+            transcript = _find_first_text(payload)
+            if transcript:
+                logger.info(
+                    "Sarvam STT success | "
                     f"contract={contract.name} endpoint={contract.endpoint} "
-                    f"auth={_auth_mode_label(contract.auth_header)} model={contract.model} err={exc}"
+                    f"model={contract.model} latency_ms={latency_ms} transcript={transcript[:100]}"
                 )
-            except ValueError as exc:
-                last_reason = "invalid_json"
-                last_detail = str(exc)
-                logger.warning(
-                    "Sarvam STT response parse failed | "
-                    f"contract={contract.name} endpoint={contract.endpoint} model={contract.model} err={exc}"
-                )
-            except Exception as exc:
-                last_reason = "unexpected_error"
-                last_detail = str(exc)
-                logger.error(
-                    "Sarvam STT unexpected error | "
-                    f"contract={contract.name} endpoint={contract.endpoint} model={contract.model} err={exc}"
-                )
+                return transcript
+
+            last_reason = "empty_transcript"
+            last_detail = f"status={response.status_code}"
+            logger.warning(
+                "Sarvam STT empty transcript | "
+                f"contract={contract.name} endpoint={contract.endpoint} "
+                f"model={contract.model} latency_ms={latency_ms} payload_type={type(payload).__name__}"
+            )
+        except httpx.RequestError as exc:
+            last_reason = "request_error"
+            last_detail = str(exc)
+            logger.warning(
+                "Sarvam STT request failed | "
+                f"contract={contract.name} endpoint={contract.endpoint} "
+                f"auth={_auth_mode_label(contract.auth_header)} model={contract.model} err={exc}"
+            )
+        except ValueError as exc:
+            last_reason = "invalid_json"
+            last_detail = str(exc)
+            logger.warning(
+                "Sarvam STT response parse failed | "
+                f"contract={contract.name} endpoint={contract.endpoint} model={contract.model} err={exc}"
+            )
+        except Exception as exc:
+            last_reason = "unexpected_error"
+            last_detail = str(exc)
+            logger.error(
+                "Sarvam STT unexpected error | "
+                f"contract={contract.name} endpoint={contract.endpoint} model={contract.model} err={exc}"
+            )
 
     if last_reason:
         logger.error(f"Sarvam STT failed for all contracts | reason={last_reason} detail={last_detail}")
@@ -232,11 +257,11 @@ async def download_twilio_recording(recording_url: str, timeout_sec: float | Non
     final_url = recording_url if recording_url.endswith(".wav") else f"{recording_url}.wav"
 
     request_timeout = timeout_sec if timeout_sec and timeout_sec > 0 else env.HTTP_TIMEOUT_SEC
-
-    async with httpx.AsyncClient(timeout=request_timeout) as client:
-        response = await client.get(
-            final_url,
-            auth=(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN),
-        )
-        response.raise_for_status()
-        return response.content
+    client = await _get_stt_http_client()
+    response = await client.get(
+        final_url,
+        auth=(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN),
+        timeout=request_timeout,
+    )
+    response.raise_for_status()
+    return response.content
