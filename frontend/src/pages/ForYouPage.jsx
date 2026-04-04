@@ -44,6 +44,12 @@ import {
 import { FOR_YOU_MENU_ITEMS } from "../data/forYouNavItems";
 import { fetchEurGbpInrSpot } from "../lib/exchangeRates";
 import { googleCalendarUrl } from "../lib/googleCalendar";
+import {
+  getTopUniversities,
+  getScholarshipsForIndians,
+  getCitiesByCountry,
+  buildForYouDashboard,
+} from "../lib/knowledgeBase";
 
 const container = {
   hidden: { opacity: 0 },

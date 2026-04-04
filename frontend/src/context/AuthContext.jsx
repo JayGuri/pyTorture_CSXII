@@ -14,6 +14,15 @@ const SEED_USERS = [
     password: "demo12345",
     name: "Aanya Sharma",
     preliminaryCallDone: true,
+    profile: {
+      country: "uk",
+      studyLevel: "Masters",
+      budget: "flexible",
+      interests: ["Computer Science", "Data Science"],
+      workExperience: 2,
+      targetCities: ["London", "Manchester"],
+      scholarship: true,
+    },
   },
   {
     id: "seed-new",
@@ -21,6 +30,15 @@ const SEED_USERS = [
     password: "newuser123",
     name: "Vikram Singh",
     preliminaryCallDone: false,
+    profile: {
+      country: null,
+      studyLevel: null,
+      budget: null,
+      interests: [],
+      workExperience: 0,
+      targetCities: [],
+      scholarship: false,
+    },
   },
 ];
 
@@ -113,6 +131,15 @@ export function AuthProvider({ children }) {
       password,
       name: nameRes.value,
       preliminaryCallDone: false,
+      profile: {
+        country: null,
+        studyLevel: null,
+        budget: null,
+        interests: [],
+        workExperience: 0,
+        targetCities: [],
+        scholarship: false,
+      },
     };
     const custom = readCustomUsers();
     writeCustomUsers([...custom, record]);
@@ -126,6 +153,62 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const updateUserProfile = useCallback((profileData) => {
+    if (!user) return { ok: false, error: "No user logged in" };
+    const updated = { ...user, profile: { ...user.profile, ...profileData } };
+    const custom = readCustomUsers();
+    const seedUser = SEED_USERS.find(
+      (u) => u.email.toLowerCase() === user.email.toLowerCase()
+    );
+    if (seedUser) {
+      // For seed users, just update local state
+      setUser(updated);
+    } else {
+      // For custom users, update storage
+      const idx = custom.findIndex(
+        (u) => u.email.toLowerCase() === user.email.toLowerCase()
+      );
+      if (idx >= 0) {
+        custom[idx] = { ...custom[idx], profile: updated.profile };
+        writeCustomUsers(custom);
+      }
+      setUser(updated);
+    }
+    return { ok: true };
+  }, [user]);
+
+  const markCallAsDone = useCallback((callData = {}) => {
+    if (!user) return { ok: false, error: "No user logged in" };
+    const updated = {
+      ...user,
+      preliminaryCallDone: true,
+      profile: { ...user.profile, ...callData },
+      lastCallDate: new Date().toISOString(),
+    };
+    const custom = readCustomUsers();
+    const seedUser = SEED_USERS.find(
+      (u) => u.email.toLowerCase() === user.email.toLowerCase()
+    );
+    if (seedUser) {
+      setUser(updated);
+    } else {
+      const idx = custom.findIndex(
+        (u) => u.email.toLowerCase() === user.email.toLowerCase()
+      );
+      if (idx >= 0) {
+        custom[idx] = {
+          ...custom[idx],
+          preliminaryCallDone: true,
+          profile: updated.profile,
+          lastCallDate: updated.lastCallDate,
+        };
+        writeCustomUsers(custom);
+      }
+      setUser(updated);
+    }
+    return { ok: true };
+  }, [user]);
+
   const value = useMemo(
     () => ({
       user,
@@ -133,8 +216,10 @@ export function AuthProvider({ children }) {
       login,
       signup,
       logout,
+      updateUserProfile,
+      markCallAsDone,
     }),
-    [user, login, signup, logout],
+    [user, login, signup, logout, updateUserProfile, markCallAsDone],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
