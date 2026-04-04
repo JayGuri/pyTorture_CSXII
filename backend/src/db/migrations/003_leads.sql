@@ -1,0 +1,45 @@
+-- Migration 03: Leads
+CREATE TABLE IF NOT EXISTS leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID REFERENCES call_sessions(id),
+  name TEXT,
+  phone TEXT,
+  email TEXT,
+  location TEXT,
+  education_level TEXT,
+  field TEXT,
+  institution TEXT,
+  gpa NUMERIC(4,2),
+  target_countries TEXT[],
+  course_interest TEXT,
+  intake_timing TEXT,
+  ielts_score NUMERIC(3,1),
+  pte_score NUMERIC(3,1),
+  budget_range TEXT,
+  budget_status TEXT DEFAULT 'not_asked' CHECK (budget_status IN ('disclosed','deferred','not_asked')),
+  scholarship_interest BOOLEAN DEFAULT false,
+  timeline TEXT,
+  application_stage TEXT,
+  persona_type TEXT,
+  lead_score INTEGER DEFAULT 0,
+  intent_score INTEGER DEFAULT 0,
+  financial_score INTEGER DEFAULT 0,
+  timeline_score INTEGER DEFAULT 0,
+  classification TEXT DEFAULT 'Cold' CHECK (classification IN ('Hot','Warm','Cold')),
+  data_completeness INTEGER DEFAULT 0,
+  emotional_anxiety TEXT DEFAULT 'low' CHECK (emotional_anxiety IN ('low','medium','high')),
+  emotional_confidence TEXT DEFAULT 'medium',
+  emotional_urgency TEXT DEFAULT 'low',
+  callback_requested BOOLEAN DEFAULT false,
+  competitor_mentioned BOOLEAN DEFAULT false,
+  ielts_upsell_flag BOOLEAN DEFAULT false,
+  counsellor_brief JSONB,
+  recommended_universities JSONB DEFAULT '[]',
+  unresolved_objections TEXT[],
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_leads_classification ON leads(classification);
+CREATE INDEX IF NOT EXISTS idx_leads_score ON leads(lead_score DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_session ON leads(session_id);
