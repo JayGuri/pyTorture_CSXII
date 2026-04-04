@@ -81,20 +81,43 @@ async def list_callers(
             },
         }
     except Exception as exc:
-        logger.error(f"Dashboard callers error: {exc}")
-        raise HTTPException(status_code=500, detail="Failed to fetch callers") from exc
+        return {"success": False, "error": str(exc)}
 
+=========
+    Query Parameters:
+    - status: Filter by gap status (pending, researching, resolved, dismissed)
+    - limit: Max results to return (1-200)
 
-@router.get("/callers/{phone}")
-async def get_caller(phone: str):
+    Returns:
+    - Array of unresolved FAQ questions from calls
+    """
     try:
-        db = get_db()
-        caller = await db.callers.find_one({"phone": normalize_phone(phone) or phone})
-        if not caller:
-            raise HTTPException(status_code=404, detail="Caller not found")
-        return serialize_mongo(caller)
+        # Validate status
+        valid_statuses = ["pending", "researching", "resolved", "dismissed"]
+        if status not in valid_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            )
+
+        result = (
+            supabase.table("kb_gaps")
+            .select(
+                """
+                id, session_id, question, status, created_at,
+                leads(id, name, email, classification)
+                """
+            )
+            .eq("status", status)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+
+        return DataResponse(success=True, data=result.data or [])
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Dashboard caller detail error: {exc}")
-        raise HTTPException(status_code=500, detail="Failed to fetch caller") from exc
+        logger.error(f"Dashboard FAQ gaps error: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch FAQ gaps: {str(exc)}")
+>>>>>>>>> Temporary merge branch 2
