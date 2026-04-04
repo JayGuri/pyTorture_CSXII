@@ -19,6 +19,16 @@
   pointer-events: none;
 }
 
+.sm-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 14, 26, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 460;
+  will-change: opacity, backdrop-filter;
+}
+
 .staggered-menu-header {
   position: fixed;
   top: 5.25rem;

@@ -110,11 +110,11 @@ export default function StaggeredMenu({
     const tl = gsap.timeline({ paused: true });
 
     layerStates.forEach((ls, i) => {
-      tl.fromTo(ls.el, { xPercent: ls.start }, { xPercent: 0, duration: 0.5, ease: "power4.out" }, i * 0.07);
+      tl.fromTo(ls.el, { xPercent: ls.start }, { xPercent: 0, duration: 0.55, ease: "power4.out" }, i * 0.08);
     });
-    const lastTime = layerStates.length ? (layerStates.length - 1) * 0.07 : 0;
-    const panelInsertTime = lastTime + (layerStates.length ? 0.08 : 0);
-    const panelDuration = 0.65;
+    const lastTime = layerStates.length ? (layerStates.length - 1) * 0.08 : 0;
+    const panelInsertTime = lastTime + 0.1;
+    const panelDuration = 0.75;
     tl.fromTo(
       panel,
       { xPercent: panelStart },
@@ -130,7 +130,8 @@ export default function StaggeredMenu({
         {
           yPercent: 0,
           rotate: 0,
-          duration: 1,
+          opacity: 1,
+          duration: 1.1,
           ease: "power4.out",
           stagger: { each: 0.08, from: "start" },
         },
@@ -140,10 +141,10 @@ export default function StaggeredMenu({
         tl.to(
           numberEls,
           {
-            duration: 0.6,
-            ease: "power2.out",
             "--sm-num-opacity": 1,
-            stagger: { each: 0.06, from: "start" },
+            duration: 0.8,
+            ease: "power2.out",
+            stagger: { each: 0.08, from: "start" },
           },
           itemsStart + 0.1,
         );
@@ -178,7 +179,6 @@ export default function StaggeredMenu({
   }, []);
 
   const playOpen = useCallback(() => {
-    if (busyRef.current) return;
     busyRef.current = true;
     const tl = buildOpenTimeline();
     if (tl) {
@@ -192,6 +192,8 @@ export default function StaggeredMenu({
   }, [buildOpenTimeline]);
 
   const playClose = useCallback(() => {
+    // We allow interrupts for closing, but we still mark as busy
+    busyRef.current = true;
     openTlRef.current?.kill();
     openTlRef.current = null;
 
@@ -199,30 +201,63 @@ export default function StaggeredMenu({
     const layers = preLayerElsRef.current;
     if (!panel) return;
 
-    const all = [...layers, panel];
-    closeTweenRef.current?.kill();
     const offscreen = position === "left" ? -100 : 100;
-    closeTweenRef.current = gsap.to(all, {
-      xPercent: offscreen,
-      duration: 0.32,
-      ease: "power3.in",
-      overwrite: "auto",
+    const tl = gsap.timeline({
       onComplete: () => {
-        const itemEls = Array.from(panel.querySelectorAll(".sm-panel-itemLabel"));
-        if (itemEls.length) {
-          gsap.set(itemEls, { yPercent: 140, rotate: 10 });
-        }
-        const numberEls = Array.from(panel.querySelectorAll(".sm-panel-list[data-numbering] .sm-panel-item"));
-        if (numberEls.length) {
-          gsap.set(numberEls, { "--sm-num-opacity": 0 });
-        }
-        const socialTitle = panel.querySelector(".sm-socials-title");
-        const socialLinks = Array.from(panel.querySelectorAll(".sm-socials-link"));
-        if (socialTitle) gsap.set(socialTitle, { opacity: 0 });
-        if (socialLinks.length) gsap.set(socialLinks, { y: 25, opacity: 0 });
         busyRef.current = false;
-      },
+        if (onMenuClose) onMenuClose();
+      }
     });
+
+    // 1. Content exit (items and socials)
+    const itemEls = Array.from(panel.querySelectorAll(".sm-panel-itemLabel"));
+    const numberEls = Array.from(panel.querySelectorAll(".sm-panel-list[data-numbering] .sm-panel-item"));
+    const socialTitle = panel.querySelector(".sm-socials-title");
+    const socialLinks = Array.from(panel.querySelectorAll(".sm-socials-link"));
+
+    if (itemEls.length) {
+      tl.to(itemEls, {
+        yPercent: 140,
+        rotate: -5,
+        opacity: 0,
+        duration: 0.4,
+        ease: "power2.in",
+        stagger: { each: 0.04, from: "end" }
+      });
+    }
+
+    if (numberEls.length) {
+      tl.to(numberEls, { "--sm-num-opacity": 0, duration: 0.3, ease: "power2.in" }, 0);
+    }
+
+    if (socialTitle || socialLinks.length) {
+      tl.to([socialTitle, ...socialLinks].filter(Boolean), {
+        opacity: 0,
+        y: 10,
+        duration: 0.3,
+        ease: "power2.in"
+      }, 0);
+    }
+
+    // 2. Main panel exit
+    tl.to(panel, {
+      xPercent: offscreen,
+      duration: 0.5,
+      ease: "power3.inOut"
+    }, "-=0.2");
+
+    // 3. Pre-layers exit
+    if (layers.length) {
+      layers.slice().reverse().forEach((layer, i) => {
+        tl.to(layer, {
+          xPercent: offscreen,
+          duration: 0.45,
+          ease: "power3.inOut"
+        }, "-=0.35");
+      });
+    }
+
+    closeTweenRef.current = tl;
   }, [position]);
 
   const animateIcon = useCallback((opening) => {
@@ -437,6 +472,16 @@ export default function StaggeredMenu({
       data-position={position}
       data-open={open || undefined}
     >
+      <div
+        className="sm-overlay"
+        onClick={closeMenu}
+        style={{
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? "auto" : "none",
+          transition: "opacity 0.6s ease, backdrop-filter 0.6s ease"
+        }}
+        aria-hidden="true"
+      />
       <div ref={preLayersRef} className="sm-prelayers" aria-hidden="true">
         {(() => {
           const raw = colors && colors.length ? colors.slice(0, 4) : ["#1e1e22", "#35353c"];
