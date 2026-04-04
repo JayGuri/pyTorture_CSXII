@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, StopCircle, Loader2, AlertCircle, Volume2, BarChart3, Zap } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 import { voiceAgentAPI } from '../../lib/voiceAgentAPI';
 import './VoiceAgent.css';
@@ -21,7 +22,26 @@ const SENTIMENT_COLORS = {
   interested: '#3b82f6', // blue
 };
 
-export default function VoiceAgent({ sessionId, userId, open, onClose }) {
+export default function VoiceAgent() {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const sessionId = user?.sessionId;
+  const userId = user?.id;
+
+  // Debug user context
+  useEffect(() => {
+    if (open) {
+      console.log('[VoiceAgent] Component mounted, user context:', {
+        user: user ? 'exists' : 'null',
+        sessionId: sessionId || 'MISSING',
+        userId: userId || 'MISSING',
+        userKeys: user ? Object.keys(user) : []
+      });
+    }
+  }, [open, user, sessionId, userId]);
+
+  const onClose = () => setOpen(false);
+
   const [language, setLanguage] = useState('en');
   const [transcript, setTranscript] = useState('');
   const [userSentiment, setUserSentiment] = useState(null);
@@ -82,12 +102,27 @@ export default function VoiceAgent({ sessionId, userId, open, onClose }) {
   const handleStopRecording = async () => {
     if (!isRecording) return;
 
+    // Validate required fields before API call
+    if (!sessionId) {
+      setError('Session ID is missing. Please refresh the page and try again.');
+      setIsProcessing(false);
+      setLoading(false);
+      return;
+    }
+
     setIsProcessing(true);
     setLoading(true);
 
     try {
       const audioBlob = await stopRecording();
       const audioBase64 = await blobToBase64(audioBlob);
+
+      if (!audioBase64 || audioBase64.trim() === '') {
+        setError('No audio recorded. Please try again.');
+        setIsProcessing(false);
+        setLoading(false);
+        return;
+      }
 
       setTranscript('Processing audio...');
 
@@ -171,8 +206,18 @@ export default function VoiceAgent({ sessionId, userId, open, onClose }) {
   const getSentimentColor = (sentiment) => SENTIMENT_COLORS[sentiment] || '#6b7280';
 
   return (
-    <AnimatePresence>
-      {open && (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="voice-agent-fab"
+        title="Voice Advisor"
+      >
+        <Mic className="h-6 w-6" />
+      </button>
+
+      <AnimatePresence>
+        {open && (
         <div key="voice-agent" className="contents">
           {/* Backdrop */}
           <motion.button
@@ -386,5 +431,6 @@ export default function VoiceAgent({ sessionId, userId, open, onClose }) {
         </div>
       )}
     </AnimatePresence>
+    </>
   );
 }

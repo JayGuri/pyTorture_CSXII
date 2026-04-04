@@ -83,7 +83,7 @@ class DataExtractor:
     def __init__(self):
         self.patterns = DataExtractionPatterns()
 
-    async def extract_all(self, text: str, language: str = "en") -> Dict[str, any]:
+    async def extract_all(self, text: str, language: str = "en") -> Dict[str, Any]:
         """
         Extract all available data points from text
         
@@ -124,7 +124,7 @@ class DataExtractor:
             "missing_categories": extracted.get("missing", [])
         }
 
-    def _extract_sync(self, text: str, language: str = "en") -> Dict[str, any]:
+    def _extract_sync(self, text: str, language: str = "en") -> Dict[str, Any]:
         """Synchronous extraction logic"""
         
         extracted = {}
@@ -211,7 +211,7 @@ def get_data_extractor() -> DataExtractor:
     return _extractor
 
 
-async def extract_data(text: str, language: str = "en") -> Dict[str, any]:
+async def extract_data(text: str, language: str = "en") -> Dict[str, Any]:
     """Convenience function for data extraction"""
     extractor = get_data_extractor()
     return await extractor.extract_all(text, language)

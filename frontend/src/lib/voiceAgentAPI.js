@@ -10,19 +10,31 @@ export const voiceAgentAPI = {
    * Process audio chunk with sentiment analysis and data extraction
    */
   async transcribeVoice(audioBase64, sessionId, language = 'en', userId = null) {
+    const payload = {
+      audio_base64: audioBase64,
+      session_id: sessionId,
+      language,
+      user_id: userId,
+    };
+
+    console.log('[VoiceAPI] Sending transcribe request', {
+      sessionId,
+      language,
+      userId,
+      audioLength: audioBase64 ? audioBase64.length : 0,
+      audioBase64Sample: audioBase64 ? audioBase64.substring(0, 50) : 'EMPTY',
+    });
+
     const response = await fetch(`${API_BASE}/api/voice-agent/transcribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        audio_base64: audioBase64,
-        session_id: sessionId,
-        language,
-        user_id: userId,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      throw new Error(`Transcription failed: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[VoiceAPI] Error response:', errorData);
+      throw new Error(`Transcription failed: ${response.statusText} - ${JSON.stringify(errorData)}`);
     }
 
     const data = await response.json();

@@ -7,6 +7,8 @@ import socketio
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from src.config.env import env
 from src.middleware.error_handler import ErrorHandlerMiddleware
@@ -139,6 +141,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ─── Exception Handlers ────────────────────────────────────
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    """Log detailed validation errors for debugging"""
+    logger.error(f"[VALIDATION_ERROR] Path: {request.url.path}")
+    logger.error(f"[VALIDATION_ERROR] Method: {request.method}")
+    logger.error(f"[VALIDATION_ERROR] Errors: {exc.errors()}")
+    for error in exc.errors():
+        logger.error(f"[VALIDATION_ERROR] Field: {error['loc']}, Type: {error['type']}, Message: {error['msg']}")
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "message": "Validation failed - check logs for details"
+        }
+    )
+
+
 # ─── Routes ──────────────────────────────────────────────
 app.include_router(twilio_router, prefix="/webhooks/twilio")
 app.include_router(twilio_router, prefix="/api/twilio", include_in_schema=False)
@@ -170,4 +192,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=env.PORT,
         reload=env.NODE_ENV == "development",
+        limit_max_requests=1000,
+        limit_concurrency=100,
     )

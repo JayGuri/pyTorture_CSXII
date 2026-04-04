@@ -241,24 +241,6 @@ async def funnel(date_from: Optional[str] = None) -> DataResponse[FunnelResponse
         raise HTTPException(status_code=500, detail=f"Failed to fetch funnel: {str(exc)}")
 
 
-# GET /api/dashboard/faq-gaps
-@router.get("/faq-gaps")
-async def faq_gaps(
-    status: str = Query(default="pending", description="Gap status: pending, researching, resolved, dismissed"),
-    limit: int = Query(default=50, ge=1, le=200),
-):
-    result = (
-        supabase.table("kb_gaps")
-        .select("*")
-        .eq("status", status)
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
-
-    return {"success": True, "data": result.data or []}
-
-
 # GET /api/dashboard/sessions/:session_id/onboarding-progress
 @router.get("/sessions/{session_id}/onboarding-progress")
 async def onboarding_progress(session_id: str):
@@ -290,6 +272,12 @@ async def onboarding_progress(session_id: str):
     except Exception as exc:
         return {"success": False, "error": str(exc)}
 
+
+# GET /api/dashboard/faq-gaps
+@router.get("/faq-gaps")
+async def faq_gaps(
+    status: str = Query(default="pending", description="Gap status: pending, researching, resolved, dismissed"),
+    limit: int = Query(default=50, ge=1, le=200),
 ) -> DataResponse:
     """
     List FAQ gaps from voice calls that need research.
