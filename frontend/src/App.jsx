@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ForYouPage from "./pages/ForYouPage";
+import ScholarshipsPage from "./pages/ScholarshipsPage";
 
 function App() {
   return (
@@ -40,6 +41,16 @@ function App() {
           <Layout>
             <ProtectedRoute>
               <ForYouPage />
+            </ProtectedRoute>
+          </Layout>
+        }
+      />
+      <Route
+        path="/for-you/scholarships"
+        element={
+          <Layout>
+            <ProtectedRoute>
+              <ScholarshipsPage />
             </ProtectedRoute>
           </Layout>
         }
