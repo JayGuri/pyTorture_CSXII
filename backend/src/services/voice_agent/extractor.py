@@ -4,7 +4,7 @@ Extracts 12+ data points from natural conversation
 """
 
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 import asyncio
 from dataclasses import dataclass
 import logging
