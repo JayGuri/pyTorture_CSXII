@@ -11,30 +11,23 @@ class TwilioSignatureValidationError(Exception):
 
 
 def _build_public_request_url(request: Request) -> str:
-    base = env.normalized_public_url()
-    url = f"{base}{request.url.path}"
+    url = f"{env.normalized_public_url()}{request.url.path}"
     if request.url.query:
         url = f"{url}?{request.url.query}"
     return url
 
 
 async def validate_twilio_signature(request: Request) -> None:
-    """FastAPI dependency that validates Twilio webhook signatures.
-    Skipped in development mode.
-    """
-    if env.NODE_ENV.lower() == "development":
+    if not env.is_production():
         return
 
     signature = request.headers.get("x-twilio-signature", "")
     if not signature:
         raise TwilioSignatureValidationError("Missing Twilio signature header")
 
-    url = _build_public_request_url(request)
-
-    # Read form body
     form_data = await request.form()
-    params = {k: str(v) for k, v in form_data.items()}
+    params = {key: str(value) for key, value in form_data.items()}
 
     validator = RequestValidator(env.TWILIO_AUTH_TOKEN)
-    if not validator.validate(url, params, signature):
+    if not validator.validate(_build_public_request_url(request), params, signature):
         raise TwilioSignatureValidationError("Invalid Twilio signature")

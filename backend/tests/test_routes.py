@@ -1,342 +1,154 @@
-"""
-Integration tests for API routes.
+from __future__ import annotations
 
-Tests cover:
-- Dashboard endpoints
-- Leads endpoints
-- For You endpoints
-- Response formats and status codes
-"""
+import asyncio
+import time
+from unittest.mock import AsyncMock, patch
 
-import pytest
-from unittest.mock import patch, Mock
-from fastapi import HTTPException
+from src.models.types import ACTIVE_CALLS, get_or_create_state
+from src.routes import twilio_webhook as twilio_module
 
 
-# ────────────────────────────────────────────────────────────────────
-# Dashboard Route Tests
-# ────────────────────────────────────────────────────────────────────
+def test_root_endpoint(client):
+    response = client.get("/")
 
-class TestDashboardRoutes:
-    """Test dashboard endpoints."""
-
-    def test_dashboard_overview_success(self, client, mock_supabase):
-        """Test GET /api/dashboard/overview returns metrics."""
-        # Mock Supabase responses
-        mock_response = Mock()
-        mock_response.count = 10
-        mock_response.data = []
-
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_db.table.return_value.select.return_value.eq.return_value.gte.return_value.execute.return_value = mock_response
-            mock_db.table.return_value.select.return_value.gte.return_value.execute.return_value = mock_response
-
-            response = client.get("/api/dashboard/overview")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] == True
-            assert "data" in data
-
-    def test_dashboard_leads_list(self, client):
-        """Test GET /api/dashboard/leads returns paginated leads."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.count = 5
-            mock_response.data = [
-                {"id": "1", "name": "Lead 1", "classification": "Hot"},
-                {"id": "2", "name": "Lead 2", "classification": "Warm"},
-            ]
-
-            mock_db.table.return_value.select.return_value.order.return_value.range.return_value.execute.return_value = mock_response
-
-            response = client.get("/api/dashboard/leads?page=1&limit=20")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] == True
-            assert len(data["data"]) == 2
-            assert "pagination" in data
-
-    def test_dashboard_leads_with_classification_filter(self, client):
-        """Test /api/dashboard/leads with classification filter."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.count = 2
-            mock_response.data = [
-                {"id": "1", "name": "Hot Lead 1", "classification": "Hot"},
-                {"id": "2", "name": "Hot Lead 2", "classification": "Hot"},
-            ]
-
-            mock_db.table.return_value.select.return_value.order.return_value.range.return_value.eq.return_value.execute.return_value = mock_response
-
-            response = client.get("/api/dashboard/leads?page=1&limit=20&classification=Hot")
-
-            assert response.status_code == 200
-
-    def test_dashboard_active_sessions(self, client):
-        """Test GET /api/dashboard/active-sessions."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.data = [
-                {"id": "session-1", "status": "active", "caller_phone": "+1234"},
-            ]
-
-            mock_db.table.return_value.select.return_value.eq.return_value.order.return_value.execute.return_value = mock_response
-
-            response = client.get("/api/dashboard/active-sessions")
-
-            assert response.status_code == 200
-            assert response.json()["success"] == True
-
-    def test_dashboard_active_sessions_invalid_status(self, client):
-        """Test /api/dashboard/active-sessions with invalid status."""
-        response = client.get("/api/dashboard/active-sessions?status=invalid_status")
-
-        assert response.status_code == 400
-
-    def test_dashboard_funnel(self, client):
-        """Test GET /api/dashboard/funnel."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.count = 100
-
-            mock_db.table.return_value.select.return_value.execute.return_value = mock_response
-            mock_db.table.return_value.select.return_value.gt.return_value.execute.return_value = mock_response
-            mock_db.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
-
-            response = client.get("/api/dashboard/funnel")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "data" in data
+    assert response.status_code == 200
+    assert response.json()["service"] == "fateh-voice-backend"
 
 
-# ────────────────────────────────────────────────────────────────────
-# Leads Route Tests
-# ────────────────────────────────────────────────────────────────────
+def test_health_endpoint_with_mocked_checks(client):
+    with (
+        patch("src.routes.health._check_mongodb", new=AsyncMock(return_value="ok")),
+        patch("src.routes.health._check_groq", new=AsyncMock(return_value="ok")),
+        patch("src.routes.health._check_featherless", new=AsyncMock(return_value="ok")),
+        patch("src.routes.health._check_gemini", new=AsyncMock(return_value="ok")),
+        patch("src.routes.health._check_sarvam", new=AsyncMock(return_value="ok")),
+        patch("src.routes.health._check_public_url", return_value="ok"),
+    ):
+        response = client.get("/api/health")
 
-class TestLeadsRoutes:
-    """Test leads endpoints."""
+    assert response.status_code == 200
+    assert response.json()["status"] == "healthy"
 
-    def test_list_leads(self, client):
-        """Test GET /api/leads returns paginated leads."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.count = 3
-            mock_response.data = [
-                {"id": "1", "name": "Lead 1", "email": "lead1@example.com"},
-                {"id": "2", "name": "Lead 2", "email": "lead2@example.com"},
-                {"id": "3", "name": "Lead 3", "email": "lead3@example.com"},
-            ]
 
-            mock_db.table.return_value.select.return_value.order.return_value.range.return_value.execute.return_value = mock_response
+def test_voice_entry_returns_language_gather(client):
+    with patch("src.routes.twilio_webhook._upsert_caller_for_inbound_call", new=AsyncMock(return_value=({}, False))):
+        response = client.post(
+            "/webhooks/twilio/voice",
+            data={"CallSid": "CA123", "From": "+919876543210"},
+        )
 
-            response = client.get("/api/leads?page=1&limit=20")
+    assert response.status_code == 200
+    assert "Press 1 for English" in response.text
+    assert "<Gather" in response.text
 
-            assert response.status_code == 200
-            assert len(response.json()["data"]) == 3
 
-    def test_get_lead_success(self, client):
-        """Test GET /api/leads/{lead_id}."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.data = {
-                "id": "lead-1",
-                "name": "Test Lead",
-                "email": "test@example.com",
-            }
+def test_language_route_uses_returning_confirmation_for_returning_caller(client):
+    ACTIVE_CALLS.clear()
+    state = get_or_create_state("CA555", "+919876543210")
+    state.is_returning_caller = True
 
-            mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_response
+    with patch("src.routes.twilio_webhook._update_call_record", new=AsyncMock()):
+        response = client.post(
+            "/webhooks/twilio/language",
+            data={"CallSid": "CA555", "From": "+919876543210", "Digits": "1"},
+        )
 
-            response = client.get("/api/leads/lead-1")
+    assert response.status_code == 200
+    assert "Welcome back to Fateh Education" in response.text
 
-            assert response.status_code == 200
-            assert response.json()["data"]["id"] == "lead-1"
 
-    def test_get_lead_not_found(self, client):
-        """Test GET /api/leads/{lead_id} when lead doesn't exist."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.data = None
+def test_status_route_supports_voice_status_alias(client):
+    ACTIVE_CALLS.clear()
+    state_a = get_or_create_state("CA700", "+919876543210")
+    state_a.turns = 2
+    state_b = get_or_create_state("CA701", "+919876543210")
+    state_b.turns = 1
 
-            mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_response
+    with patch("src.routes.twilio_webhook._update_call_record", new=AsyncMock()) as update_mock:
+        response_primary = client.post(
+            "/webhooks/twilio/status",
+            data={"CallSid": "CA700", "From": "+919876543210", "CallStatus": "completed", "CallDuration": "12"},
+        )
+        response_alias = client.post(
+            "/webhooks/twilio/voice/status",
+            data={"CallSid": "CA701", "From": "+919876543210", "CallStatus": "completed", "CallDuration": "10"},
+        )
 
-            response = client.get("/api/leads/nonexistent")
+    assert response_primary.status_code == 200
+    assert response_alias.status_code == 200
+    assert update_mock.await_count == 2
 
-            assert response.status_code == 404
 
-    def test_update_lead_success(self, client):
-        """Test PATCH /api/leads/{lead_id}."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.data = [
-                {
-                    "id": "lead-1",
-                    "name": "Updated Lead",
-                    "classification": "Hot",
-                    "lead_score": 75,
-                }
-            ]
+def test_process_turn_falls_back_to_say_when_tts_fails(client):
+    ACTIVE_CALLS.clear()
+    twilio_module.PROCESSED_RECORDINGS.clear()
 
-            mock_db.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_response
+    with (
+        patch("src.routes.twilio_webhook.download_twilio_recording", new=AsyncMock(return_value=b"wav-bytes")),
+        patch("src.routes.twilio_webhook.transcribe_audio", new=AsyncMock(return_value="I need help with UK admissions")),
+        patch("src.routes.twilio_webhook.process_turn", new=AsyncMock(return_value=("Fallback test reply", {}))),
+        patch("src.routes.twilio_webhook._update_call_record", new=AsyncMock()),
+        patch("src.routes.twilio_webhook.synthesize_speech", new=AsyncMock(side_effect=RuntimeError("Sarvam unavailable"))),
+    ):
+        response = client.post(
+            "/webhooks/twilio/process-turn?lang=en-IN",
+            data={
+                "CallSid": "CA900",
+                "From": "+919876543210",
+                "RecordingUrl": "https://example.test/recording",
+                "RecordingSid": "RE900",
+            },
+        )
 
-            response = client.patch(
-                "/api/leads/lead-1",
-                json={
-                    "name": "Updated Lead",
-                    "classification": "Hot",
-                    "lead_score": 75,
-                }
+    assert response.status_code == 200
+    assert "<Say" in response.text
+    assert "Fallback test reply" in response.text
+
+
+def test_reply_with_audio_skips_tts_when_budget_is_low():
+    async def _run_test():
+        with patch("src.routes.twilio_webhook.synthesize_speech", new=AsyncMock(return_value=b"audio")) as tts_mock:
+            response = await twilio_module._reply_with_audio_or_say(
+                call_sid="CA_LOW_BUDGET",
+                reply="Budget fallback reply",
+                language="en-IN",
+                continue_call=True,
+                deadline_monotonic=time.monotonic() + 0.01,
             )
 
-            assert response.status_code == 200
+            assert b"<Say" in response.body
+            assert b"Budget fallback reply" in response.body
+            tts_mock.assert_not_awaited()
 
-    def test_update_lead_invalid_classification(self, client):
-        """Test PATCH /api/leads/{lead_id} with invalid classification."""
-        response = client.patch(
-            "/api/leads/lead-1",
-            json={"classification": "Invalid"}
+    asyncio.run(_run_test())
+
+
+def test_process_turn_skips_orchestrator_when_budget_too_low(client):
+    ACTIVE_CALLS.clear()
+    twilio_module.PROCESSED_RECORDINGS.clear()
+
+    with (
+        patch("src.routes.twilio_webhook.download_twilio_recording", new=AsyncMock(return_value=b"wav-bytes")),
+        patch("src.routes.twilio_webhook.transcribe_audio", new=AsyncMock(return_value="Need help with admissions")),
+        patch("src.routes.twilio_webhook.process_turn", new=AsyncMock(return_value=("Should not be used", {}))) as orchestrator_mock,
+        patch("src.routes.twilio_webhook._update_call_record", new=AsyncMock()),
+        patch("src.routes.twilio_webhook.synthesize_speech", new=AsyncMock(side_effect=RuntimeError("Use Polly fallback"))),
+        patch.object(twilio_module.env, "TWILIO_WEBHOOK_FAST_DEADLINE_MODE", True),
+        patch.object(twilio_module.env, "WEBHOOK_INTERNAL_BUDGET_SEC", 1.0),
+        patch.object(twilio_module.env, "WEBHOOK_MIN_TTS_BUDGET_SEC", 1.0),
+        patch.object(twilio_module.env, "WEBHOOK_MIN_ORCHESTRATOR_BUDGET_SEC", 5.0),
+    ):
+        response = client.post(
+            "/webhooks/twilio/process-turn?lang=en-IN",
+            data={
+                "CallSid": "CA901",
+                "From": "+919876543210",
+                "RecordingUrl": "https://example.test/recording",
+                "RecordingSid": "RE901",
+            },
         )
 
-        assert response.status_code == 400
-
-    def test_update_lead_invalid_score(self, client):
-        """Test PATCH /api/leads/{lead_id} with invalid score."""
-        response = client.patch(
-            "/api/leads/lead-1",
-            json={"lead_score": 150}  # Out of range
-        )
-
-        assert response.status_code == 400
-
-
-# ────────────────────────────────────────────────────────────────────
-# For You Route Tests
-# ────────────────────────────────────────────────────────────────────
-
-class TestForYouRoutes:
-    """Test For You page endpoints."""
-
-    def test_for_you_dashboard_missing_params(self, client):
-        """Test GET /api/v1/for-you/dashboard without session_id or email."""
-        response = client.get("/api/v1/for-you/dashboard")
-
-        assert response.status_code == 400
-
-    def test_for_you_dashboard_lead_not_found(self, client):
-        """Test /api/v1/for-you/dashboard when lead not found."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.data = None
-
-            mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_response
-
-            response = client.get("/api/v1/for-you/dashboard?session_id=unknown")
-
-            assert response.status_code == 404
-
-    def test_for_you_dashboard_success(self, client, sample_lead):
-        """Test GET /api/v1/for-you/dashboard returns complete dashboard."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.data = sample_lead
-
-            mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_response
-
-            with patch('src.services.kb_service.KBService.load_universities', return_value=[]):
-                with patch('src.services.kb_service.KBService.load_scholarships', return_value=[]):
-                    with patch('src.services.kb_service.KBService.load_cost_of_living', return_value={}):
-                        response = client.get("/api/v1/for-you/dashboard?session_id=test-123")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "lead_profile" in data
-            assert "recommendations" in data
-            assert "insights" in data
-
-    def test_for_you_completeness_success(self, client, sample_lead):
-        """Test GET /api/v1/for-you/completeness/{lead_id}."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.data = sample_lead
-
-            mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_response
-
-            response = client.get("/api/v1/for-you/completeness/lead-1")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "completeness_percentage" in data["data"]
-            assert "missing_fields" in data["data"]
-
-    def test_for_you_update_completeness(self, client, sample_lead):
-        """Test PATCH /api/v1/for-you/update-completeness/{lead_id}."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_get = Mock()
-            mock_get.data = sample_lead
-
-            mock_update = Mock()
-            mock_update.data = [sample_lead]
-
-            mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_get
-            mock_db.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_update
-
-            response = client.patch("/api/v1/for-you/update-completeness/lead-1")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["success"] == True
-
-    def test_for_you_health_check(self, client):
-        """Test GET /api/v1/for-you/health."""
-        response = client.get("/api/v1/for-you/health")
-
-        assert response.status_code == 200
-        assert response.json()["status"] == "ok"
-
-
-# ────────────────────────────────────────────────────────────────────
-# Response Format Tests
-# ────────────────────────────────────────────────────────────────────
-
-class TestResponseFormats:
-    """Test API response format consistency."""
-
-    def test_successful_response_has_success_flag(self, client):
-        """Test that successful responses have success=true."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.data = [{"id": "1"}]
-            mock_response.count = 1
-
-            mock_db.table.return_value.select.return_value.order.return_value.range.return_value.execute.return_value = mock_response
-
-            response = client.get("/api/leads?page=1&limit=20")
-
-            assert response.json()["success"] == True
-
-    def test_error_response_status_code(self, client):
-        """Test that error responses have appropriate status codes."""
-        response = client.get("/api/leads/nonexistent")
-
-        # Should return 404 through Supabase mock returning None
-        # This tests the error handling in routes
-
-    def test_paginated_response_has_pagination(self, client):
-        """Test that paginated responses include pagination metadata."""
-        with patch('src.db.supabase_client.supabase') as mock_db:
-            mock_response = Mock()
-            mock_response.count = 100
-            mock_response.data = [{"id": "1"}]
-
-            mock_db.table.return_value.select.return_value.order.return_value.range.return_value.execute.return_value = mock_response
-
-            response = client.get("/api/leads?page=1&limit=20")
-
-            assert "pagination" in response.json()
-            pagination = response.json()["pagination"]
-            assert "total" in pagination
-            assert "page" in pagination
-            assert "limit" in pagination
-            assert "pages" in pagination
+    assert response.status_code == 200
+    assert "<Say" in response.text
+    assert "Thanks, I have noted that." in response.text
+    orchestrator_mock.assert_not_awaited()

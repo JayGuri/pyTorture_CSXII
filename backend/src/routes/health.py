@@ -2,56 +2,100 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from src.config.env import env
-from src.db.supabase_client import supabase
-from src.services.cache.redis_client import redis_ping
+from src.db.mongo_client import ping_db
+from src.services.tts.sarvam import synthesize_speech
 
 router = APIRouter(prefix="/api/health")
 
 
+async def _check_mongodb() -> str:
+    try:
+        return "ok" if await ping_db() else "error"
+    except Exception:
+        return "error"
+
+
+async def _check_groq() -> str:
+    if not env.GROQ_API_KEY:
+        return "error"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                "https://api.groq.com/openai/v1/models",
+                headers={"Authorization": f"Bearer {env.GROQ_API_KEY}"},
+            )
+            return "ok" if response.status_code == 200 else "error"
+    except Exception:
+        return "error"
+
+
+async def _check_gemini() -> str:
+    if not env.GEMINI_API_KEY:
+        return "error"
+    model_name = env.GEMINI_MODEL if env.GEMINI_MODEL.startswith("models/") else f"models/{env.GEMINI_MODEL}"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                f"https://generativelanguage.googleapis.com/v1beta/{model_name}",
+                headers={"x-goog-api-key": env.GEMINI_API_KEY},
+            )
+            return "ok" if response.status_code == 200 else "error"
+    except Exception:
+        return "error"
+
+
+async def _check_featherless() -> str:
+    if not env.FEATHERLESS_API_KEY:
+        return "error"
+    endpoint = f"{env.FEATHERLESS_BASE_URL.rstrip('/')}/models"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                endpoint,
+                headers={"Authorization": f"Bearer {env.FEATHERLESS_API_KEY}"},
+            )
+            return "ok" if response.status_code == 200 else "error"
+    except Exception:
+        return "error"
+
+
+async def _check_sarvam() -> str:
+    if not env.SARVAM_API_KEY:
+        return "error"
+    try:
+        audio = await synthesize_speech("Health check", "en-IN")
+        return "ok" if audio else "error"
+    except Exception:
+        return "error"
+
+
+def _check_public_url() -> str:
+    return "ok" if not env.public_url_issues() else "error"
+
+
 @router.get("")
 async def health_check():
-    checks: dict[str, str] = {}
-    warnings: list[str] = []
-
-    # Supabase ping
-    try:
-        _ = supabase.table("call_sessions").select("id").limit(1).execute()
-        checks["supabase"] = "ok"
-    except Exception:
-        checks["supabase"] = "error"
-
-    # Redis ping
-    try:
-        ok = await redis_ping()
-        checks["redis"] = "ok" if ok else "error"
-    except Exception:
-        checks["redis"] = "error"
-
-    checks["sarvam_api_key"] = "ok" if env.SARVAM_API_KEY.strip() else "error"
-
-    public_url_issues = env.public_url_issues()
-    if not public_url_issues:
-        checks["public_url"] = "ok"
-    elif env.should_fail_fast_public_url():
-        checks["public_url"] = "error"
-        warnings.extend(public_url_issues)
-    else:
-        checks["public_url"] = "warning"
-        warnings.extend(public_url_issues)
-
-    has_error = any(v == "error" for v in checks.values())
-    status_code = 200 if not has_error else 503
-
-    payload = {
-        "status": "healthy" if not has_error else "degraded",
-        "checks": checks,
-        "ts": datetime.now(timezone.utc).isoformat(),
+    checks = {
+        "mongodb": await _check_mongodb(),
+        "groq": await _check_groq(),
+        "featherless": await _check_featherless(),
+        "gemini": await _check_gemini(),
+        "sarvam": await _check_sarvam(),
+        "public_url": _check_public_url(),
     }
-    if warnings:
-        payload["warnings"] = warnings
+    healthy = all(value == "ok" for value in checks.values())
+    status_code = 200 if healthy else 503
 
-    return JSONResponse(content=payload, status_code=status_code)
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if healthy else "degraded",
+            "checks": checks,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )

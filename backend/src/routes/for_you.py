@@ -13,7 +13,7 @@ from pydantic import BaseModel, EmailStr
 from src.services.for_you_service import ForYouService, get_for_you_data
 from src.services.kb_service import KBService
 from src.services.lead_scoring import LeadScoringService
-from src.db.supabase_client import supabase
+from src.db.mongo_client import get_db
 from src.models.responses import DataResponse
 from src.utils.logger import logger
 
@@ -97,28 +97,28 @@ async def get_for_you_dashboard(
 
     logger.info(f"Fetching For You dashboard: session_id={session_id}, email={email}")
 
-    # Fetch lead from database
+    # Fetch caller from database
     lead = None
     if session_id:
-        lead = ForYouService.get_lead_by_session_id(session_id)
+        lead = await ForYouService.get_lead_by_session_id(session_id)
     elif email:
-        lead = ForYouService.get_lead_by_email(email)
+        lead = await ForYouService.get_lead_by_email(email)
 
-    # Create default lead if not found (for new sessions)
+    # Create default caller/lead if not found (for new sessions)
     if not lead:
-        logger.info(f"Creating default lead for session_id={session_id}, email={email}")
+        logger.info(f"Creating default caller for session_id={session_id}, email={email}")
         lead = {
-            "id": f"lead-{session_id[:8]}" if session_id else f"lead-{email.split('@')[0]}",
-            "session_id": session_id,
+            "_id": session_id if session_id else f"email-{email.split('@')[0]}",
             "email": email,
             "name": email.split("@")[0] if email else "Student",
             "target_countries": ["uk"],
             "course_interest": None,
             "gpa": None,
-            "ielts_score": None,
-            "budget": None,
+            "test_score": None,
+            "test_type": None,
+            "budget_range": None,
             "scholarship_interest": False,
-            "application_stage": "exploring",
+            "con_session_req": "none",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -168,9 +168,9 @@ async def get_lead_profile(request: ForYouRequest) -> dict:
 
     lead = None
     if request.session_id:
-        lead = ForYouService.get_lead_by_session_id(request.session_id)
+        lead = await ForYouService.get_lead_by_session_id(request.session_id)
     elif request.email:
-        lead = ForYouService.get_lead_by_email(request.email)
+        lead = await ForYouService.get_lead_by_email(request.email)
 
     if not lead:
         raise HTTPException(
@@ -193,7 +193,7 @@ async def get_insights(session_id: str) -> dict:
     Returns:
         Insights about application readiness, key actions, warnings, opportunities
     """
-    lead = ForYouService.get_lead_by_session_id(session_id)
+    lead = await ForYouService.get_lead_by_session_id(session_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
@@ -217,7 +217,7 @@ async def filter_universities(
     Returns:
         Filtered universities ranked by lead's profile match
     """
-    lead = ForYouService.get_lead_by_session_id(session_id)
+    lead = await ForYouService.get_lead_by_session_id(session_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
@@ -245,7 +245,7 @@ async def match_scholarships(
     Returns:
         Matched scholarships ranked by eligibility and lead fit
     """
-    lead = ForYouService.get_lead_by_session_id(session_id)
+    lead = await ForYouService.get_lead_by_session_id(session_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
@@ -273,7 +273,7 @@ async def get_cost_recommendations(
     Returns:
         Recommended cities with cost breakdowns based on lead's budget and targets
     """
-    lead = ForYouService.get_lead_by_session_id(session_id)
+    lead = await ForYouService.get_lead_by_session_id(session_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
@@ -288,52 +288,55 @@ async def get_cost_recommendations(
 
 @router.post("/save-recommendations")
 async def save_recommendations(
-    lead_id: str = Query(..., description="Lead ID"),
+    phone: str = Query(..., description="Caller phone number"),
     universities: list = Query(default=[], description="Filtered universities"),
     scholarships: list = Query(default=[], description="Matched scholarships"),
 ) -> DataResponse:
     """
-    Save filtered recommendations to lead profile.
+    Save filtered recommendations to caller profile.
 
     Persists the filtered universities list to the database for future reference.
 
     Args:
-        lead_id: Lead ID
+        phone: Caller phone number (MongoDB _id)
         universities: Filtered and ranked universities
         scholarships: Matched scholarships
 
     Returns:
-        Updated lead record with saved recommendations
+        Updated caller record with saved recommendations
     """
     try:
-        # Save recommendations to lead profile
+        db = get_db()
+        # Save recommendations to caller profile
         body = {
             "recommended_universities": [u.get("id") or u.get("name") for u in universities[:10]],
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        result = (
-            supabase.table("leads")
-            .update(body)
-            .eq("id", lead_id)
-            .execute()
+        result = await db.callers.update_one(
+            {"_id": phone},
+            {"$set": body}
         )
 
-        if not result.data:
-            raise HTTPException(status_code=404, detail=f"Lead not found: {lead_id}")
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail=f"Caller not found: {phone}")
 
-        logger.info(f"Saved {len(universities)} recommendations for lead {lead_id}")
-        return DataResponse(success=True, data=result.data[0])
+        # Fetch and return updated document
+        updated = await db.callers.find_one({"_id": phone})
+        logger.info(f"Saved {len(universities)} recommendations for caller {phone}")
+        return DataResponse(success=True, data=updated)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error saving recommendations: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save recommendations: {str(e)}")
 
 
-@router.get("/completeness/{lead_id}")
-async def get_lead_completeness(lead_id: str) -> DataResponse:
+@router.get("/completeness/{phone}")
+async def get_lead_completeness(phone: str) -> DataResponse:
     """
-    Get data completeness information for a lead.
+    Get data completeness information for a caller.
 
     Returns:
     - Current completeness percentage (0-100)
@@ -341,40 +344,33 @@ async def get_lead_completeness(lead_id: str) -> DataResponse:
     - Recommendations for improvement
 
     Args:
-        lead_id: Lead ID
+        phone: Caller phone number
 
     Returns:
         Completeness data with missing fields and improvement recommendations
     """
     try:
-        # Fetch lead from database
-        result = (
-            supabase.table("leads")
-            .select("*")
-            .eq("id", lead_id)
-            .single()
-            .execute()
-        )
+        db = get_db()
+        # Fetch caller from database
+        caller = await db.callers.find_one({"_id": phone})
 
-        if not result.data:
-            raise HTTPException(status_code=404, detail=f"Lead not found: {lead_id}")
-
-        lead = result.data
+        if not caller:
+            raise HTTPException(status_code=404, detail=f"Caller not found: {phone}")
 
         # Calculate completeness and get recommendations
-        completeness = LeadScoringService.calculate_data_completeness(lead)
-        missing = LeadScoringService.get_missing_fields(lead)
-        improvements = LeadScoringService.get_improvement_recommendations(lead, missing)
+        completeness = LeadScoringService.calculate_data_completeness(caller)
+        missing = LeadScoringService.get_missing_fields(caller)
+        improvements = LeadScoringService.get_improvement_recommendations(caller, missing)
 
         completeness_data = {
-            "lead_id": lead_id,
+            "phone": phone,
             "completeness_percentage": completeness,
             "missing_fields": missing,
             "improvement_recommendations": improvements,
             "next_priority": improvements[0] if improvements else None,
         }
 
-        logger.info(f"Calculated completeness {completeness}% for lead {lead_id}")
+        logger.info(f"Calculated completeness {completeness}% for caller {phone}")
         return DataResponse(success=True, data=completeness_data)
 
     except HTTPException:
@@ -384,38 +380,31 @@ async def get_lead_completeness(lead_id: str) -> DataResponse:
         raise HTTPException(status_code=500, detail=f"Failed to calculate completeness: {str(e)}")
 
 
-@router.patch("/update-completeness/{lead_id}")
-async def update_lead_completeness(lead_id: str) -> DataResponse:
+@router.patch("/update-completeness/{phone}")
+async def update_lead_completeness(phone: str) -> DataResponse:
     """
     Calculate and update data completeness score in the database.
 
     Args:
-        lead_id: Lead ID
+        phone: Caller phone number
 
     Returns:
-        Updated lead record with new completeness score
+        Updated caller record with new completeness score
     """
     try:
-        # Fetch current lead
-        result = (
-            supabase.table("leads")
-            .select("*")
-            .eq("id", lead_id)
-            .single()
-            .execute()
-        )
+        db = get_db()
+        # Fetch current caller
+        caller = await db.callers.find_one({"_id": phone})
 
-        if not result.data:
-            raise HTTPException(status_code=404, detail=f"Lead not found: {lead_id}")
-
-        lead = result.data
+        if not caller:
+            raise HTTPException(status_code=404, detail=f"Caller not found: {phone}")
 
         # Calculate new completeness and scores
-        completeness = LeadScoringService.calculate_data_completeness(lead)
-        lead_score = LeadScoringService.calculate_lead_score(lead)
-        intent_score = LeadScoringService.calculate_intent_score(lead)
-        financial_score = LeadScoringService.calculate_financial_score(lead)
-        timeline_score = LeadScoringService.calculate_timeline_score(lead)
+        completeness = LeadScoringService.calculate_data_completeness(caller)
+        lead_score = LeadScoringService.calculate_lead_score(caller)
+        intent_score = LeadScoringService.calculate_intent_score(caller)
+        financial_score = LeadScoringService.calculate_financial_score(caller)
+        timeline_score = LeadScoringService.calculate_timeline_score(caller)
 
         # Update database
         body = {
@@ -427,18 +416,18 @@ async def update_lead_completeness(lead_id: str) -> DataResponse:
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        update_result = (
-            supabase.table("leads")
-            .update(body)
-            .eq("id", lead_id)
-            .execute()
+        result = await db.callers.update_one(
+            {"_id": phone},
+            {"$set": body}
         )
 
-        if not update_result.data:
-            raise HTTPException(status_code=404, detail=f"Lead not found: {lead_id}")
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail=f"Caller not found: {phone}")
 
-        logger.info(f"Updated scores for lead {lead_id}: completeness={completeness}, lead_score={lead_score}")
-        return DataResponse(success=True, data=update_result.data[0])
+        # Fetch and return updated document
+        updated = await db.callers.find_one({"_id": phone})
+        logger.info(f"Updated scores for caller {phone}: completeness={completeness}, lead_score={lead_score}")
+        return DataResponse(success=True, data=updated)
 
     except HTTPException:
         raise
