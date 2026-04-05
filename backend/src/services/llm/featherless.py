@@ -1,197 +1,262 @@
 from __future__ import annotations
 
-import re
-from typing import Any, Dict, List
+import asyncio
+import time
+from typing import Dict, List, Optional
 
-from openai import AsyncOpenAI
+import httpx
 
 from src.config.env import env
 from src.utils.logger import logger
 
-client = AsyncOpenAI(
-    api_key=env.FEATHERLESS_API_KEY,
-    base_url=env.FEATHERLESS_BASE_URL,
-)
-
-_SENTENCE_BOUNDARY_RE = re.compile(r"[.!?\u0964]")
-
-# Minimum chars before we early-return on a sentence boundary.
-# Prevents filler phrases like "Sure thing!" from being sent as the full reply.
-_MIN_EARLY_RETURN_CHARS = 60
+# Cooldown state shared per-process and reset if model changes.
+_failure_cooldown_until_monotonic: float = 0.0
+_failure_cooldown_model: str = ""
 
 
-def _selected_model() -> str:
-    model = env.FEATHERLESS_FAST_MODEL.strip() if env.FEATHERLESS_FAST_MODEL else ""
-    if model:
-        return model
-    return env.FEATHERLESS_MODEL
+class FeatherlessProviderError(RuntimeError):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        status_code: Optional[int] = None,
+        retryable: bool = True,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.status_code = status_code
+        self.retryable = retryable
 
 
-def _extract_first_sentence(text: str) -> str:
-    if not text:
-        return ""
+def _limit_reply_words(text: str, max_words: int = 90) -> str:
+    words = text.split()
+    if len(words) <= max_words:
+        return text.strip()
+    return " ".join(words[:max_words]).strip()
 
-    for index, char in enumerate(text):
-        if not _SENTENCE_BOUNDARY_RE.match(char):
+
+def _has_active_failure_cooldown() -> bool:
+    global _failure_cooldown_until_monotonic, _failure_cooldown_model
+
+    if _failure_cooldown_model and _failure_cooldown_model != env.FEATHERLESS_MODEL:
+        _failure_cooldown_until_monotonic = 0.0
+        _failure_cooldown_model = ""
+        return False
+
+    return time.monotonic() < _failure_cooldown_until_monotonic
+
+
+def _failure_cooldown_remaining_sec() -> int:
+    remaining = _failure_cooldown_until_monotonic - time.monotonic()
+    return max(0, int(remaining))
+
+
+def _activate_failure_cooldown(reason: str) -> None:
+    global _failure_cooldown_until_monotonic, _failure_cooldown_model
+
+    cooldown_sec = max(1, int(env.FEATHERLESS_FAILURE_COOLDOWN_SEC))
+    cooldown_until = time.monotonic() + cooldown_sec
+    _failure_cooldown_until_monotonic = max(_failure_cooldown_until_monotonic, cooldown_until)
+    _failure_cooldown_model = env.FEATHERLESS_MODEL
+
+    logger.warning(
+        "Featherless cooldown activated | "
+        f"model={env.FEATHERLESS_MODEL} reason={reason} cooldown_sec={cooldown_sec}"
+    )
+
+
+def _normalize_role(role: str) -> str:
+    lowered = (role or "").strip().lower()
+    if lowered in {"assistant", "model"}:
+        return "assistant"
+    if lowered == "system":
+        return "system"
+    return "user"
+
+
+def _build_messages(system_prompt: str, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    payload_messages: List[Dict[str, str]] = []
+
+    if system_prompt.strip():
+        payload_messages.append({"role": "system", "content": system_prompt.strip()})
+
+    for message in messages:
+        content = (message.get("content") or "").strip()
+        if not content:
             continue
-        if index == len(text) - 1:
-            return text[: index + 1].strip()
-        next_char = text[index + 1]
-        if next_char.isspace() or next_char in {'"', "'", ")", "]"}:
-            return text[: index + 1].strip()
-
-    return ""
-
-
-def _budgeted_max_tokens(max_tokens: int | None) -> int:
-    if max_tokens is not None and max_tokens > 0:
-        return max_tokens
-    return env.LLM_MAX_TOKENS
-
-
-async def generate_reply_streaming(
-    system_prompt: str,
-    messages: List[Dict[str, str]],
-    max_tokens: int | None = None,
-    temperature: float = 0.3,
-) -> str:
-    model = _selected_model()
-    token_limit = _budgeted_max_tokens(max_tokens)
-    token_budget = max(1, env.LLM_FIRST_SENTENCE_TOKEN_BUDGET)
-
-    try:
-        stream = await client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                *messages,
-            ],
-            max_tokens=token_limit,
-            temperature=temperature,
-            stream=True,
+        payload_messages.append(
+            {
+                "role": _normalize_role(message.get("role", "user")),
+                "content": content,
+            }
         )
 
-        chunks: list[str] = []
-        approx_tokens = 0
+    return payload_messages
 
-        async for event in stream:
-            if not event.choices:
-                continue
-            delta = event.choices[0].delta.content or ""
-            if not delta:
-                continue
 
-            chunks.append(delta)
-            approx_tokens += len(delta.split())
+def _is_qwen3_model(model_name: str) -> bool:
+    return "qwen3" in (model_name or "").strip().lower()
 
-            current_text = "".join(chunks).strip()
-            first_sentence = _extract_first_sentence(current_text)
-            if first_sentence and len(current_text) >= _MIN_EARLY_RETURN_CHARS:
-                logger.info(
-                    "LLM stream early sentence ready | "
-                    f"model={model} approx_tokens={approx_tokens} chars={len(current_text)}"
-                )
-                return first_sentence
 
-            if approx_tokens >= token_budget:
-                logger.info(
-                    "LLM stream sentence boundary budget exceeded | "
-                    f"model={model} approx_tokens={approx_tokens}"
-                )
-                return current_text
+def _classify_http_error(status_code: int, body_text: str) -> FeatherlessProviderError:
+    lowered = (body_text or "").lower()
 
-        final_text = "".join(chunks).strip()
-        logger.info(
-            "LLM stream completed without early boundary | "
-            f"model={model} approx_tokens={approx_tokens}"
+    if status_code == 401:
+        return FeatherlessProviderError(
+            "unauthenticated",
+            "Featherless API key was rejected",
+            status_code=status_code,
+            retryable=False,
         )
-        return final_text
-    except Exception as exc:
-        logger.error(f"Featherless LLM streaming error: {exc} | model={model}")
+
+    if status_code == 403:
+        return FeatherlessProviderError(
+            "gated_or_unauthorized",
+            "Featherless model is gated or access is not authorized",
+            status_code=status_code,
+            retryable=False,
+        )
+
+    if status_code == 429:
+        return FeatherlessProviderError(
+            "rate_limited",
+            "Featherless rate limit reached",
+            status_code=status_code,
+            retryable=True,
+        )
+
+    if status_code == 503:
+        return FeatherlessProviderError(
+            "insufficient_capacity",
+            "Featherless has no available executor for this model",
+            status_code=status_code,
+            retryable=True,
+        )
+
+    if status_code >= 500:
+        return FeatherlessProviderError(
+            "server_error",
+            "Featherless returned an internal server error",
+            status_code=status_code,
+            retryable=True,
+        )
+
+    if status_code == 400 and (
+        "cold" in lowered
+        or "not ready for inference" in lowered
+        or "loading" in lowered
+        or "warm" in lowered
+    ):
+        return FeatherlessProviderError(
+            "model_not_ready",
+            "Featherless model is currently cold or loading",
+            status_code=status_code,
+            retryable=True,
+        )
+
+    return FeatherlessProviderError(
+        "request_error",
+        f"Featherless request failed with status={status_code}",
+        status_code=status_code,
+        retryable=False,
+    )
+
+
+async def generate_reply(system_prompt: str, messages: List[Dict[str, str]]) -> str:
+    if not messages:
         return ""
 
-
-async def generate_reply(
-    system_prompt: str,
-    messages: List[Dict[str, str]],
-    max_tokens: int | None = None,
-    temperature: float = 0.3,
-) -> str:
-    model = _selected_model()
-    token_limit = _budgeted_max_tokens(max_tokens)
-
-    if env.LLM_STREAM:
-        streamed = await generate_reply_streaming(
-            system_prompt,
-            messages,
-            max_tokens=token_limit,
-            temperature=temperature,
-        )
-        if streamed:
-            return streamed
-        logger.warning(f"LLM stream returned empty, retrying non-streaming | model={model}")
-
-    try:
-        response = await client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                *messages,
-            ],
-            max_tokens=token_limit,
-            temperature=temperature,
-        )
-
-        text = (response.choices[0].message.content or "").strip() if response.choices else ""
-        total_tokens = response.usage.total_tokens if response.usage else 0
-        logger.info(f"LLM reply generated | model={model} tokens={total_tokens}")
-        return text
-    except Exception as exc:
-        logger.error(f"Featherless LLM error: {exc} | model={model}")
+    if not env.FEATHERLESS_API_KEY:
+        logger.warning("Featherless key missing | skip_provider_call=true")
         return ""
 
+    if _has_active_failure_cooldown():
+        logger.warning(
+            "Featherless cooldown active | "
+            f"model={env.FEATHERLESS_MODEL} skip_provider_call=true "
+            f"remaining_sec={_failure_cooldown_remaining_sec()}"
+        )
+        return ""
 
-async def generate_simple_reply(
-    transcript: str,
-    language_code: str,
-    analysis: Dict[str, Any],
-) -> str:
-    lang_names = {
-        "en-IN": "English",
-        "hi-IN": "Hindi (Hinglish is fine)",
-        "mr-IN": "Marathi",
+    max_attempts = max(1, int(env.FEATHERLESS_MAX_RETRIES))
+    backoff_base = max(0.0, float(env.FEATHERLESS_RETRY_BACKOFF_BASE_SEC))
+    request_timeout_sec = max(15, float(env.FEATHERLESS_TIMEOUT_SEC))
+
+    payload = {
+        "model": env.FEATHERLESS_MODEL,
+        "messages": _build_messages(system_prompt, messages),
+        "temperature": 0.35,
+        "max_tokens": max(64, int(env.FEATHERLESS_MAX_OUTPUT_TOKENS)),
     }
 
-    system_prompt = f"""You are Priya Sharma, an expert overseas education counsellor at Fateh Education with 10+ years of experience helping Indian students study in the UK and Ireland.
+    if _is_qwen3_model(env.FEATHERLESS_MODEL):
+        # Qwen3 supports disabling chain-of-thought via chat template kwargs.
+        payload["chat_template_kwargs"] = {"enable_thinking": False}
 
-PERSONALITY:
-- Warm, knowledgeable, encouraging, and professional
-- You speak naturally and concisely — this is a VOICE call
-- Responses MUST be under 80 words (this is a phone call, not a chat)
-- No bullet points, no headers, no markdown, no lists
-- Use natural conversational transitions
+    endpoint = f"{env.FEATHERLESS_BASE_URL.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {env.FEATHERLESS_API_KEY}",
+        "Content-Type": "application/json",
+    }
 
-LANGUAGE:
-- Respond in {lang_names.get(language_code, 'English')}
-- If Hindi/Marathi: keep university names, course names, test names (IELTS, PTE, TOEFL), city names, and all numbers in English
-- Mirror the caller's language blend naturally
+    for attempt in range(max_attempts):
+        try:
+            t0 = time.monotonic()
+            async with httpx.AsyncClient(timeout=request_timeout_sec) as client:
+                response = await client.post(endpoint, headers=headers, json=payload)
+            elapsed = time.monotonic() - t0
 
-KNOWLEDGE:
-- UK and Ireland study abroad expert
-- Knows about universities, courses, fees, visas, scholarships, IELTS/PTE preparation
-- If you genuinely don't know something, say "Let me note that down for your counsellor"
-- NEVER hallucinate facts about specific university fees or visa requirements
+            if response.status_code != 200:
+                error = _classify_http_error(response.status_code, response.text)
+                logger.warning(
+                    "Featherless request failed | "
+                    f"model={env.FEATHERLESS_MODEL} status={response.status_code} "
+                    f"code={error.code} attempt={attempt + 1}/{max_attempts}"
+                )
 
-EXTRACTION (covert — never make the caller feel interrogated):
-- Naturally weave questions to learn: name, education level, target country, course interest, budget, IELTS score, timeline
-- Ask ONE question at a time, blended into your response
-- Always end with a warm open question to continue the conversation
+                if attempt == max_attempts - 1 or not error.retryable:
+                    _activate_failure_cooldown(error.code)
+                    raise error
 
-CONTEXT:
-- Detected intent: {analysis.get('intent', 'general_query')}
-- Detected sentiment: {analysis.get('sentiment', 'neutral')}
-- Key entities found: {analysis.get('entities', {{}})}"""
+                sleep_sec = backoff_base * (2 ** attempt)
+                if sleep_sec > 0:
+                    await asyncio.sleep(sleep_sec)
+                continue
 
-    return await generate_reply(system_prompt, [
-        {"role": "user", "content": transcript},
-    ])
+            data = response.json()
+            choices = data.get("choices") or []
+            text = ""
+            if choices:
+                message = choices[0].get("message") or {}
+                text = message.get("content") or choices[0].get("text") or ""
+
+            logger.info(f"Featherless reply OK | model={env.FEATHERLESS_MODEL} elapsed={elapsed:.2f}s")
+            return _limit_reply_words(str(text).strip())
+
+        except httpx.TimeoutException as exc:
+            logger.warning(
+                "Featherless timeout | "
+                f"model={env.FEATHERLESS_MODEL} attempt={attempt + 1}/{max_attempts}"
+            )
+            if attempt == max_attempts - 1:
+                raise FeatherlessProviderError(
+                    "timeout",
+                    "Featherless request timed out",
+                    retryable=True,
+                ) from exc
+
+        except httpx.RequestError as exc:
+            logger.warning(
+                "Featherless network error | "
+                f"model={env.FEATHERLESS_MODEL} attempt={attempt + 1}/{max_attempts} err={exc}"
+            )
+            if attempt == max_attempts - 1:
+                raise FeatherlessProviderError(
+                    "network_error",
+                    "Featherless request failed due to network transport error",
+                    retryable=True,
+                ) from exc
+
+    _activate_failure_cooldown("exhausted_retries")
+    return ""

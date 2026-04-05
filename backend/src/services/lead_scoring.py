@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-# Fields required for full data completeness
+# Fields required for full data completeness (MongoDB schema)
 REQUIRED_FIELDS = [
     "name",
     "email",
@@ -24,18 +24,16 @@ REQUIRED_FIELDS = [
     "target_countries",
     "course_interest",
     "intake_timing",
-    "ielts_score",
+    "test_score",
     "budget_range",
     "scholarship_interest",
-    "timeline",
-    "application_stage",
 ]
 
 # Fields that increase score significantly
 HIGH_IMPACT_FIELDS = {
-    "ielts_score": 15,
+    "test_score": 15,
     "gpa": 12,
-    "application_stage": 10,
+    "con_session_req": 10,
     "target_countries": 10,
     "budget_range": 8,
 }
@@ -54,7 +52,6 @@ LOW_IMPACT_FIELDS = {
     "location": 4,
     "intake_timing": 4,
     "scholarship_interest": 3,
-    "timeline": 3,
 }
 
 
@@ -155,7 +152,7 @@ class LeadScoringService:
         """
         recommendations = []
 
-        if not lead_profile.get("ielts_score") and not lead_profile.get("pte_score"):
+        if not lead_profile.get("test_score"):
             recommendations.append({
                 "priority": "high",
                 "title": "Schedule Language Test",
@@ -187,7 +184,7 @@ class LeadScoringService:
                 "action": "Choose low/medium/high budget range",
             })
 
-        if not lead_profile.get("application_stage"):
+        if not lead_profile.get("con_session_req"):
             recommendations.append({
                 "priority": "medium",
                 "title": "Update Application Status",
@@ -221,16 +218,16 @@ class LeadScoringService:
 
         # Engagement signals (30 points)
         engagement = 0
-        if lead_profile.get("ielts_score") or lead_profile.get("pte_score"):
+        if lead_profile.get("test_score") or lead_profile.get("test_score"):
             engagement += 10  # Has test score
-        if lead_profile.get("application_stage") in ["submitted", "admitted", "accepted"]:
+        if lead_profile.get("con_session_req") in ["submitted", "admitted", "accepted"]:
             engagement += 12  # Active in application process
         if lead_profile.get("scholarship_interest"):
             engagement += 8   # Interested in scholarships
         score += min(engagement, 30)
 
         # Application progress (20 points)
-        stage = (lead_profile.get("application_stage") or "").lower()
+        stage = (lead_profile.get("con_session_req") or "").lower()
         if stage == "accepted" or stage == "admitted":
             score += 20
         elif stage in ["submitted", "shortlisted"]:
@@ -263,7 +260,7 @@ class LeadScoringService:
         score = 0
 
         # Timeline (20 points)
-        timeline = (lead_profile.get("timeline") or "").lower()
+        timeline = (lead_profile.get("intake_timing") or "").lower()
         if "urgent" in timeline or "asap" in timeline:
             score += 20
         elif "soon" in timeline or "next" in timeline:
@@ -284,7 +281,7 @@ class LeadScoringService:
             score += 5
 
         # Test scores (20 points)
-        if lead_profile.get("ielts_score") or lead_profile.get("pte_score"):
+        if lead_profile.get("test_score") or lead_profile.get("test_score"):
             score += 20
 
         # Profile completeness (20 points)
@@ -339,7 +336,7 @@ class LeadScoringService:
         persona = (lead_profile.get("persona_type") or "").lower()
         if "work" in persona or "professional" in persona:
             score += 15
-        if lead_profile.get("timeline") == "Can work after studies":
+        if lead_profile.get("intake_timing") == "Can work after studies":
             score += 5
 
         return int(min(100, max(0, score)))
@@ -363,7 +360,7 @@ class LeadScoringService:
         score = 0
 
         # Timeline urgency (40 points)
-        timeline = (lead_profile.get("timeline") or "").lower()
+        timeline = (lead_profile.get("intake_timing") or "").lower()
         if "urgent" in timeline or "asap" in timeline:
             score += 40
         elif "soon" in timeline or "next" in timeline:
@@ -381,7 +378,7 @@ class LeadScoringService:
             score += 10
 
         # Application readiness (30 points)
-        stage = (lead_profile.get("application_stage") or "").lower()
+        stage = (lead_profile.get("con_session_req") or "").lower()
         if stage in ["submitted", "shortlisted", "admitted", "accepted"]:
             score += 30
         elif stage == "in_progress":

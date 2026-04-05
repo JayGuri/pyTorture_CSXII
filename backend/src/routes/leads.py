@@ -1,12 +1,17 @@
-from __future__ import annotations
+"""
+Leads Management API Routes
+
+REST API for CRUD operations on leads/callers in MongoDB.
+Used by admin dashboard for viewing and managing leads.
+"""
 
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Query, Request, HTTPException
+from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 
-from src.db.supabase_client import supabase
+from src.db.mongo_client import get_db
 from src.models.responses import DataResponse, PaginatedResponse, PaginationInfo
 from src.utils.logger import logger
 
@@ -14,7 +19,7 @@ router = APIRouter(prefix="/api/leads")
 
 
 class LeadUpdate(BaseModel):
-    """Validated lead update model to prevent arbitrary field updates."""
+    """Validated lead/caller update model to prevent arbitrary field updates."""
 
     name: Optional[str] = None
     email: Optional[str] = None
@@ -27,188 +32,171 @@ class LeadUpdate(BaseModel):
     target_countries: Optional[list] = None
     course_interest: Optional[str] = None
     intake_timing: Optional[str] = None
-    ielts_score: Optional[float] = None
-    pte_score: Optional[float] = None
+    test_type: Optional[str] = None
+    test_score: Optional[float] = None
+    test_stage: Optional[str] = None
     budget_range: Optional[str] = None
     budget_status: Optional[str] = None
     scholarship_interest: Optional[bool] = None
-    timeline: Optional[str] = None
-    application_stage: Optional[str] = None
-    persona_type: Optional[str] = None
-    lead_score: Optional[int] = None
-    intent_score: Optional[int] = None
-    financial_score: Optional[int] = None
-    timeline_score: Optional[int] = None
-    classification: Optional[str] = None
-    data_completeness: Optional[int] = None
-    emotional_anxiety: Optional[str] = None
-    emotional_confidence: Optional[str] = None
-    emotional_urgency: Optional[str] = None
     callback_requested: Optional[bool] = None
     competitor_mentioned: Optional[bool] = None
     ielts_upsell_flag: Optional[bool] = None
-    counsellor_brief: Optional[str] = None
-    recommended_universities: Optional[list] = None
-    unresolved_objections: Optional[list] = None
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "name": "John Doe",
-                "email": "john@example.com",
-                "classification": "Warm",
-                "lead_score": 75,
-            }
-        }
+    con_session_req: Optional[str] = None
+    lead_score: Optional[int] = None
+    classification: Optional[str] = None
 
 
-# GET /api/leads
 @router.get("")
 async def list_leads(
-    page: int = Query(default=1, ge=1),
-    limit: int = Query(default=20, ge=1, le=100),
-    classification: Optional[str] = Query(None, description="Filter by Hot/Warm/Cold"),
-    search: Optional[str] = Query(None, description="Search by name or email"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    classification: Optional[str] = Query(None, description="Filter by classification (Hot/Warm/Cold)"),
+    search: Optional[str] = Query(None, description="Search by phone, name, or email"),
 ) -> PaginatedResponse:
     """
-    List all leads with pagination and filtering.
+    Get paginated list of leads/callers with optional filtering and search.
 
     Query Parameters:
-    - page: Page number (1-indexed)
-    - limit: Results per page (1-100)
-    - classification: Filter by Hot/Warm/Cold
-    - search: Search by name or email
+    - page: Page number (default 1)
+    - limit: Items per page (default 20, max 100)
+    - classification: Filter by classification (Hot/Warm/Cold)
+    - search: Search by phone number, name, or email (regex)
 
     Returns:
-    - data: Array of lead records
-    - pagination: Pagination metadata
+        Paginated list of callers with total count and pagination info
     """
     try:
-        offset = (page - 1) * limit
+        db = get_db()
 
-        query = (
-            supabase.table("leads")
-            .select("id, name, email, phone, classification, lead_score, created_at, updated_at", count="exact")
-            .order("created_at", desc=True)
-            .range(offset, offset + limit - 1)
+        # Build filter query
+        filter_query: Dict[str, Any] = {}
+        if classification:
+            filter_query["classification"] = classification
+
+        if search:
+            # Search in phone, name, email (case-insensitive regex)
+            search_pattern = {"$regex": search, "$options": "i"}
+            filter_query["$or"] = [
+                {"_id": search_pattern},  # phone
+                {"name": search_pattern},
+                {"email": search_pattern},
+            ]
+
+        # Get total count
+        total = await db.callers.count_documents(filter_query)
+
+        # Calculate pagination
+        skip = (page - 1) * limit
+        pages = (total + limit - 1) // limit
+
+        # Fetch paginated results, sorted by last_contact descending
+        callers = await (
+            db.callers.find(filter_query, projection={"memory.messages": 0})
+            .sort("last_contact", -1)
+            .skip(skip)
+            .limit(limit)
+            .to_list(length=limit)
         )
 
-        if classification and classification in ["Hot", "Warm", "Cold"]:
-            query = query.eq("classification", classification)
-        if search:
-            query = query.or_(f"name.ilike.%{search}%,email.ilike.%{search}%")
+        # Remove MongoDB _id ObjectId and use phone as id
+        for caller in callers:
+            caller["id"] = caller.pop("_id")
 
-        result = query.execute()
+        pagination = PaginationInfo(
+            total=total,
+            page=page,
+            limit=limit,
+            pages=pages,
+        )
 
-        pagination = {
-            "total": result.count or 0,
-            "page": page,
-            "limit": limit,
-            "pages": ((result.count or 0) + limit - 1) // limit if result.count else 0,
-        }
-        return PaginatedResponse(success=True, data=result.data or [], pagination=pagination)
-    except Exception as exc:
-        logger.error(f"Leads list error: {exc}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch leads: {str(exc)}")
+        logger.info(f"Listed {len(callers)} callers: page={page}, total={total}")
+        return PaginatedResponse(
+            success=True,
+            data=callers,
+            pagination=pagination,
+        )
+
+    except Exception as e:
+        logger.error(f"Error listing leads: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list leads: {str(e)}")
 
 
-# GET /api/leads/{lead_id}
-@router.get("/{lead_id}")
-async def get_lead(lead_id: str) -> DataResponse:
+@router.get("/{phone}")
+async def get_lead_detail(phone: str) -> DataResponse:
     """
-    Get detailed information for a specific lead.
+    Get full details of a single caller/lead by phone number.
 
     Path Parameters:
-    - lead_id: UUID of the lead
+    - phone: Caller phone number
 
     Returns:
-    - Complete lead profile with call session information
+        Complete caller record with all fields including calls history
     """
     try:
-        result = (
-            supabase.table("leads")
-            .select(
-                """
-                *,
-                call_sessions(
-                    id, twilio_call_sid, caller_phone, status,
-                    transcript, duration_seconds, language_detected,
-                    created_at, ended_at
-                )
-                """
-            )
-            .eq("id", lead_id)
-            .single()
-            .execute()
-        )
+        db = get_db()
+        caller = await db.callers.find_one({"_id": phone})
 
-        if not result.data:
-            raise HTTPException(status_code=404, detail=f"Lead not found: {lead_id}")
+        if not caller:
+            raise HTTPException(status_code=404, detail=f"Caller not found: {phone}")
 
-        return DataResponse(success=True, data=result.data)
+        # Rename _id to id for API response
+        caller["id"] = caller.pop("_id")
+
+        logger.info(f"Retrieved lead detail for {phone}")
+        return DataResponse(success=True, data=caller)
+
     except HTTPException:
         raise
-    except Exception as exc:
-        logger.error(f"Leads get error: {exc}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch lead: {str(exc)}")
+    except Exception as e:
+        logger.error(f"Error fetching lead {phone}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch lead: {str(e)}")
 
 
-# PATCH /api/leads/{lead_id}
-@router.patch("/{lead_id}")
-async def update_lead(lead_id: str, update_data: LeadUpdate) -> DataResponse:
+@router.patch("/{phone}")
+async def update_lead(phone: str, update_data: LeadUpdate) -> DataResponse:
     """
-    Update a lead's profile information.
+    Update specific fields of a caller/lead record.
 
     Path Parameters:
-    - lead_id: UUID of the lead
+    - phone: Caller phone number
 
     Request Body:
-    - LeadUpdate model with fields to update (all optional)
+        Fields to update (only specified fields will be modified)
 
     Returns:
-    - Updated lead record
-
-    Note: Only specified fields are updated; others are left unchanged.
-    updated_at timestamp is automatically set.
+        Updated caller record
     """
     try:
-        # Convert update_data to dict, removing None values
-        body = update_data.dict(exclude_none=True)
-        if not body:
-            raise HTTPException(status_code=400, detail="No fields to update")
+        db = get_db()
 
-        # Add updated_at timestamp
-        body["updated_at"] = datetime.now(timezone.utc).isoformat()
+        # Check if caller exists
+        caller = await db.callers.find_one({"_id": phone})
+        if not caller:
+            raise HTTPException(status_code=404, detail=f"Caller not found: {phone}")
 
-        # Validate classification if provided
-        if "classification" in body and body["classification"] not in ["Hot", "Warm", "Cold"]:
-            raise HTTPException(
-                status_code=400,
-                detail="classification must be one of: Hot, Warm, Cold"
+        # Prepare update body - only include non-null fields
+        body = update_data.dict(exclude_unset=True, exclude_none=True)
+        if body:
+            body["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+            # Update the record
+            result = await db.callers.update_one(
+                {"_id": phone},
+                {"$set": body},
             )
 
-        # Validate scores if provided
-        for score_field in ["lead_score", "intent_score", "financial_score", "timeline_score"]:
-            if score_field in body:
-                if not isinstance(body[score_field], int) or not (0 <= body[score_field] <= 100):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"{score_field} must be an integer between 0 and 100"
-                    )
+            if result.matched_count == 0:
+                raise HTTPException(status_code=404, detail=f"Caller not found: {phone}")
 
-        result = (
-            supabase.table("leads")
-            .update(body)
-            .eq("id", lead_id)
-            .execute()
-        )
+        # Fetch and return updated record
+        updated = await db.callers.find_one({"_id": phone})
+        updated["id"] = updated.pop("_id")
 
-        if not result.data:
-            raise HTTPException(status_code=404, detail=f"Lead not found: {lead_id}")
+        logger.info(f"Updated lead {phone}: {list(body.keys())}")
+        return DataResponse(success=True, data=updated)
 
-        return DataResponse(success=True, data=result.data[0])
     except HTTPException:
         raise
-    except Exception as exc:
-        logger.error(f"Leads update error: {exc}")
-        raise HTTPException(status_code=500, detail=f"Failed to update lead: {str(exc)}")
+    except Exception as e:
+        logger.error(f"Error updating lead {phone}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update lead: {str(e)}")

@@ -1,217 +1,319 @@
-"""
-Intelligent Data Extraction Service
-Extracts 12+ data points from natural conversation
-"""
+from __future__ import annotations
 
+import json
 import re
-from typing import Any, Dict, List, Tuple, Optional
-import asyncio
-from dataclasses import dataclass
-import logging
+from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+from src.utils.logger import logger
 
 
-@dataclass
-class DataExtractionPatterns:
-    """Regex and keyword patterns for data extraction"""
-    
-    # Personal Information
-    NAME = r"\b(?:my name is|i'm|i am|call me|[A-Z][a-z]+)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b"
-    PHONE = r"\b(?:\+91|0)?[6-9]\d{9}\b|\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b"
-    EMAIL = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
-    LOCATION = r"\b(?:from|live in|based in|location|city|place)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b"
-    
-    # Academic Information
-    EDUCATION_LEVEL = r"\b(?:12th|XII|bachelor|b\.?tech|btech|masters|m\.?tech|mtech|phd|undergrad|graduation|degree)\b"
-    FIELD = r"\b(?:engineering|medicine|business|law|arts|commerce|science|cs|computer|it|mechanical|civil|electrical|finance|marketing|psychology|biology|chemistry|psychology|nursing)\b"
-    INSTITUTION = r"\b(?:university|college|school|institute|iit|nit|bits|manipal|kmitl|amity)\b"
-    GPA = r"\b(?:gpa|cgpa|percentage|marks)[\s:]*([0-4]\.[0-9]{1,2}|[0-9]{1,2}(?:\.[0-9]{1,2})?)\b"
-    
-    # Preferences
-    TARGET_COUNTRIES = r"\b(?:uk|united kingdom|england|ireland|us|usa|canada|australia|germany|netherlands|europe)\b"
-    COURSE_INTEREST = r"\b(?:course|program|degree|studying|study)\s+(?:in\s)?([a-z\s]+?)(?:\s+(?:at|in|from)|\b)"
-    INTAKE = r"\b(?:intake|semester)\s+(?:of\s)?(?:(fall|spring|summer|january|september|march|july)|(\d{4}))\b"
-    
-    # Test Status
-    IELTS_SCORE = r"\b(?:ielts|pte)[\s:]*([0-9]\.[0-9]|[0-9]{2})\b"
-    TOEFL_SCORE = r"\b(?:toefl|sat|acт)[\s:]*([0-9]{1,3})\b"
-    TEST_PREP = r"\b(?:preparing for|studying|taking|exam|test|score)\b"
-    
-    # Financial
-    BUDGET = r"\b(?:budget|afford|cost|fee|expense|fee|price)[\s:]*(?:₹|rs|inr|\$|usd)?\s*(\d+(?:[,_]\d{3})*(?:\.\d{2})?)\b"
-    SCHOLARSHIP = r"\b(?:scholarship|grant|funding|sponsorship|fund|financial\s+aid|merit\s+based)\b"
-    
-    # Timeline
-    APPLICATION_TIMELINE = r"\b(?:apply|apply by|applying|application|apply when)[\s:]*(?:in\s)?(?:(next\s+)?(?:year|month|semester)|(\d{1,2})\s+(?:months?|years?))\b"
+# ── Regex-based fast extraction (runs always, zero latency) ─────────────
+def extract_updates(transcript: str, existing: Dict[str, Any]) -> Dict[str, Any]:
+    text = transcript.strip()
+    lower_text = text.lower()
+    updates: Dict[str, Any] = {}
 
+    if not existing.get("name"):
+        name_match = re.search(
+            r"(?:my name is|i am|i'm|mera naam|naam hai)\s+([A-Za-z][A-Za-z\s]{1,40})",
+            text,
+            re.IGNORECASE,
+        )
+        if name_match:
+            candidate = " ".join(name_match.group(1).split()).strip(" .,!?")
+            if candidate and len(candidate.split()) <= 3:
+                updates["name"] = candidate.title()
 
-class DataExtractor:
-    """Extracts structured data from conversational text"""
-    
-    # Category mapping for all 12 data points
-    DATA_CATEGORIES = {
-        # Personal (4 points)
-        "name": ("personal", "personal.name"),
-        "phone": ("personal", "personal.phone"),
-        "email": ("personal", "personal.email"),
-        "location": ("personal", "personal.location"),
-        
-        # Academic (4 points)
-        "education_level": ("academic", "academic.education_level"),
-        "field": ("academic", "academic.field"),
-        "institution": ("academic", "academic.institution"),
-        "gpa": ("academic", "academic.gpa"),
-        
-        # Preferences (2 points)
-        "target_countries": ("preferences", "preferences.target_countries"),
-        "course_interest": ("preferences", "preferences.course_interest"),
-        "intake": ("preferences", "preferences.intake"),
-        
-        # Test Status (2 points)
-        "test_scores": ("test_status", "test_status.test_scores"),
-        "test_preparation": ("test_status", "test_status.preparation"),
-        
-        # Financial (2 points)
-        "budget": ("financial", "financial.budget"),
-        "scholarship_interest": ("financial", "financial.scholarship_interest"),
-        
-        # Timeline (1 point)
-        "application_timeline": ("timeline", "timeline.application_timeline"),
-    }
+    if not existing.get("email"):
+        email_match = re.search(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", text)
+        if email_match:
+            updates["email"] = email_match.group(0)
 
-    def __init__(self):
-        self.patterns = DataExtractionPatterns()
+    if not existing.get("location"):
+        cities = [
+            "mumbai", "pune", "delhi", "new delhi", "bangalore", "bengaluru",
+            "hyderabad", "chennai", "kolkata", "ahmedabad", "jaipur", "nagpur",
+            "nashik", "thane", "navi mumbai", "aurangabad", "surat", "lucknow",
+            "kanpur", "indore", "noida", "gurgaon",
+        ]
+        for city in cities:
+            if city in lower_text:
+                updates["location"] = city.title()
+                break
 
-    async def extract_all(self, text: str, language: str = "en") -> Dict[str, Any]:
-        """
-        Extract all available data points from text
-        
-        Returns:
-            {
-                "extracted": {
-                    "personal": {"name": "...", "phone": "...", ...},
-                    "academic": {...},
-                    ...
-                },
-                "count": int,
-                "coverage": float (0-1),
-                "confidence": float (0-1)
-            }
-        """
-        
-        if not text or not text.strip():
-            return {
-                "extracted": {},
-                "count": 0,
-                "coverage": 0.0,
-                "missing_categories": list(self.DATA_CATEGORIES.keys())
-            }
+    if not existing.get("education_level"):
+        if re.search(r"\b(btech|b\.?tech|bachelor|bsc|bcom|ba|bba|be|b\.?e|12th|hsc)\b", lower_text):
+            updates["education_level"] = "Undergraduate"
+        elif re.search(r"\b(mtech|m\.?tech|master|msc|mcom|ma|mba|me|m\.?e|pg|post ?grad|graduate)\b", lower_text):
+            updates["education_level"] = "Postgraduate"
 
-        # Run extraction in thread pool
-        extracted = await asyncio.to_thread(self._extract_sync, text, language)
-        
-        # Calculate coverage
-        total_fields = len(self.DATA_CATEGORIES)
-        extracted_fields = sum(1 for v in extracted.get("extracted", {}).values() if v)
-        coverage = extracted_fields / total_fields
-
-        return {
-            "extracted": extracted.get("extracted", {}),
-            "count": extracted.get("count", 0),
-            "coverage": coverage,
-            "confidence": extracted.get("confidence", 0.5),
-            "missing_categories": extracted.get("missing", [])
+    if not existing.get("field"):
+        fields = {
+            "Computer Science": ["computer science", "software", "programming", "developer", "coding", "it"],
+            "Data Science": ["data science", "data analytics", "machine learning", "artificial intelligence", "ai", "ml"],
+            "Business": ["business", "management", "finance", "marketing", "hr", "mba"],
+            "Engineering": ["engineering", "mechanical", "electrical", "civil", "electronics"],
+            "Medicine": ["medicine", "medical", "mbbs", "nursing", "pharmacy", "healthcare"],
+            "Law": ["law", "llb", "legal"],
+            "Arts": ["arts", "humanities", "psychology", "sociology", "design"],
         }
+        for field_name, keywords in fields.items():
+            if any(keyword in lower_text for keyword in keywords):
+                updates["field"] = field_name
+                break
 
-    def _extract_sync(self, text: str, language: str = "en") -> Dict[str, Any]:
-        """Synchronous extraction logic"""
-        
-        extracted = {}
-        text_lower = text.lower()
-        count = 0
-        confidence_sum = 0
+    if not existing.get("target_countries"):
+        countries = []
+        if re.search(r"\b(uk|united kingdom|england|britain|london|manchester|edinburgh|birmingham)\b", lower_text):
+            countries.append("UK")
+        if re.search(r"\b(ireland|dublin|cork|galway|limerick|ucd|tcd)\b", lower_text):
+            countries.append("Ireland")
+        if countries:
+            updates["target_countries"] = countries
 
-        # Personal Information
-        extracted["name"] = self._extract_pattern(text, self.patterns.NAME)
-        extracted["phone"] = self._extract_pattern(text, self.patterns.PHONE)
-        extracted["email"] = self._extract_pattern(text, self.patterns.EMAIL)
-        extracted["location"] = self._extract_pattern(text, self.patterns.LOCATION)
-        
-        # Academic Information
-        extracted["education_level"] = self._extract_pattern(text, self.patterns.EDUCATION_LEVEL)
-        extracted["field"] = self._extract_pattern(text, self.patterns.FIELD)
-        extracted["institution"] = self._extract_pattern(text, self.patterns.INSTITUTION)
-        extracted["gpa"] = self._extract_pattern(text, self.patterns.GPA)
-        
-        # Preferences
-        extracted["target_countries"] = self._extract_pattern(text, self.patterns.TARGET_COUNTRIES, multiple=True)
-        extracted["course_interest"] = self._extract_pattern(text, self.patterns.COURSE_INTEREST)
-        extracted["intake"] = self._extract_pattern(text, self.patterns.INTAKE)
-        
-        # Test Status
-        extracted["test_scores"] = self._extract_pattern(text, self.patterns.IELTS_SCORE) or self._extract_pattern(text, self.patterns.TOEFL_SCORE)
-        extracted["test_preparation"] = "yes" if any(kw in text_lower for kw in ["preparing", "studying", "taking", "exam"]) else None
-        
-        # Financial
-        extracted["budget"] = self._extract_pattern(text, self.patterns.BUDGET)
-        extracted["scholarship_interest"] = "yes" if any(kw in text_lower for kw in ["scholarship", "grant", "funding"]) else None
-        
-        # Timeline
-        extracted["application_timeline"] = self._extract_pattern(text, self.patterns.APPLICATION_TIMELINE)
-        
-        # Count extracted fields
-        for key, value in extracted.items():
-            if value:
-                count += 1
-                confidence_sum += 0.8  # Default confidence for extracted data
-        
-        avg_confidence = (confidence_sum / len(extracted)) if extracted else 0
+    if not existing.get("course_interest"):
+        course_match = re.search(
+            r"\b(MSc|MBA|MCA|MTech|MA|MEng|MPhil|BSc|BTech|BBA)\s+([A-Za-z][A-Za-z\s&-]{1,60})",
+            text,
+            re.IGNORECASE,
+        )
+        if course_match:
+            updates["course_interest"] = f"{course_match.group(1).upper()} {' '.join(course_match.group(2).split())}".strip()
 
-        return {
-            "extracted": extracted,
-            "count": count,
-            "confidence": avg_confidence,
-            "missing": [k for k, v in extracted.items() if not v]
-        }
+    if not existing.get("test_score"):
+        ielts_match = re.search(r"ielts\s*(?:score\s*(?:is\s*)?)?(\d(?:\.\d)?)", lower_text)
+        pte_match = re.search(r"pte\s*(?:score\s*(?:is\s*)?)?(\d{2,3})", lower_text)
+        toefl_match = re.search(r"toefl\s*(?:score\s*(?:is\s*)?)?(\d{2,3})", lower_text)
 
-    def _extract_pattern(self, text: str, pattern: str, multiple: bool = False) -> Optional[str]:
-        """Extract value using regex pattern"""
+        if ielts_match:
+            updates["test_type"] = "IELTS"
+            updates["test_score"] = float(ielts_match.group(1))
+            updates["test_stage"] = "completed"
+        elif pte_match:
+            updates["test_type"] = "PTE"
+            updates["test_score"] = float(pte_match.group(1))
+            updates["test_stage"] = "completed"
+        elif toefl_match:
+            updates["test_type"] = "TOEFL"
+            updates["test_score"] = float(toefl_match.group(1))
+            updates["test_stage"] = "completed"
+        elif re.search(r"\b(preparing|coaching|studying for|giving ielts|giving pte)\b", lower_text):
+            updates["test_stage"] = "preparing"
+        elif re.search(r"\b(not taken|haven't taken|have not taken|planning to|will give)\b", lower_text):
+            updates["test_stage"] = "not_started"
+
+    if not existing.get("budget_range"):
+        budget_match = re.search(r"(\d+)\s*(?:lakh|lakhs|lac)", lower_text)
+        if budget_match:
+            updates["budget_range"] = f"{budget_match.group(1)} Lakh INR"
+            updates["budget_status"] = "disclosed"
+        elif re.search(r"\b(no budget|can't afford|cannot afford|tight budget|limited budget)\b", lower_text):
+            updates["budget_status"] = "deferred"
+
+    if not existing.get("intake_timing"):
+        intake_match = re.search(r"\b(september|sept|sep|january|jan)\s*(2025|2026|2027)\b", lower_text)
+        if intake_match:
+            month = intake_match.group(1)
+            year = intake_match.group(2)
+            updates["intake_timing"] = f"{month.title()} {year}".replace("Sept", "September").replace("Sep", "September").replace("Jan", "January")
+
+    if not existing.get("scholarship_interest"):
+        if re.search(r"\b(scholarship|chevening|great scholarship|funding|financial aid)\b", lower_text):
+            updates["scholarship_interest"] = True
+
+    if not existing.get("gpa"):
+        gpa_match = re.search(r"(?:gpa|cgpa)\s*(?:is\s*)?(\d+(?:\.\d+)?)", lower_text)
+        percent_match = re.search(r"(\d{2,3}(?:\.\d+)?)\s*(?:percent|percentage|%)", lower_text)
+        if gpa_match:
+            updates["gpa"] = float(gpa_match.group(1))
+        elif percent_match:
+            updates["gpa"] = float(percent_match.group(1))
+
+    if not existing.get("institution"):
+        institution_match = re.search(
+            r"(?:from|at|studying at|studied at)\s+([A-Z][A-Za-z\s&-]+(?:University|College|Institute|IIT|NIT|BITS))",
+            text,
+        )
+        if institution_match:
+            updates["institution"] = " ".join(institution_match.group(1).split())
+
+    callback_patterns = ["call back", "callback", "ring me", "baad mein", "counsellor se baat"]
+    competitor_names = ["ielts ninja", "leverage edu", "edvoy", "idp", "british council", "yocket"]
+
+    if any(pattern in lower_text for pattern in callback_patterns):
+        updates["callback_requested"] = True
+    if any(name in lower_text for name in competitor_names):
+        updates["competitor_mentioned"] = True
+
+    effective_test_score = updates.get("test_score", existing.get("test_score"))
+    effective_test_stage = updates.get("test_stage", existing.get("test_stage"))
+    if (effective_test_score is not None and effective_test_score < 6.0) or effective_test_stage == "not_started":
+        updates["ielts_upsell_flag"] = True
+
+    return updates
+
+
+# ── LLM-powered extraction (richer, runs after reply generation) ────────
+
+_EXTRACTION_FIELDS = [
+    "name", "email", "location", "education_level", "field", "institution",
+    "gpa", "target_countries", "course_interest", "intake_timing",
+    "test_type", "test_score", "test_stage", "budget_range", "budget_status",
+    "scholarship_interest", "callback_requested", "competitor_mentioned",
+    "next_con_session", "con_session_req",
+]
+
+_VALID_CON_SESSION_STATUSES = {"none", "approved", "denied", "in_process"}
+
+
+def build_extraction_prompt(transcript: str, ai_reply: str, existing_doc: Dict[str, Any]) -> str:
+    null_fields = [f for f in _EXTRACTION_FIELDS if not existing_doc.get(f) or existing_doc.get(f) == [] or existing_doc.get(f) == "not_started" or existing_doc.get(f) == "not_asked" or existing_doc.get(f) == "none"]
+
+    if not null_fields:
+        return ""
+
+    return f"""You are a data extraction assistant for an overseas education counselling service.
+Extract ONLY factual information that the student explicitly stated or confirmed in this conversation turn.
+
+STUDENT SAID: "{transcript}"
+COUNSELLOR REPLIED: "{ai_reply}"
+
+FIELDS TO EXTRACT (only if the student clearly mentioned or confirmed them):
+{json.dumps(null_fields)}
+
+FIELD RULES:
+- name: Student's full name. Title case.
+- email: Valid email address.
+- location: Indian city name. Title case.
+- education_level: "Undergraduate" or "Postgraduate".
+- field: One of: Computer Science, Data Science, Business, Engineering, Medicine, Law, Arts.
+- institution: Name of college/university.
+- gpa: Numeric GPA or percentage as a float.
+- target_countries: Array of country names (e.g. ["UK", "Ireland"]).
+- course_interest: Course name like "MSc Data Science".
+- intake_timing: Format like "September 2025" or "January 2026".
+- test_type: "IELTS", "PTE", or "TOEFL".
+- test_score: Numeric score as float.
+- test_stage: "not_started", "preparing", or "completed".
+- budget_range: Budget string like "15 Lakh INR".
+- budget_status: "disclosed" or "deferred".
+- scholarship_interest: true or false.
+- callback_requested: true if student asked for a callback.
+- competitor_mentioned: true if student mentioned a competitor.
+- next_con_session: If student mentions scheduling a counselling session, extract date/time in "ddmmyy/HH:MM" format. Use 24-hour time.
+- con_session_req: "in_process" if student requested a session, "approved" if confirmed, "denied" if declined. Leave as "none" if not discussed.
+
+Return ONLY a JSON object with the fields you extracted. Do NOT include fields where no clear info was given.
+If nothing was extractable, return an empty object: {{}}
+Return ONLY valid JSON, no explanation, no markdown.
+"""
+
+
+def parse_llm_extraction(raw: str) -> Dict[str, Any]:
+    """Parse the raw LLM output into a clean dict of extracted fields."""
+    text = raw.strip()
+    # Strip markdown code fences if present
+    if text.startswith("```"):
+        lines = text.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        # Try to find JSON in the text
+        json_match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                return {}
+        else:
+            return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    # Validate and clean extracted fields
+    clean: Dict[str, Any] = {}
+
+    if "name" in data and isinstance(data["name"], str) and data["name"].strip():
+        clean["name"] = data["name"].strip().title()
+
+    if "email" in data and isinstance(data["email"], str) and "@" in data["email"]:
+        clean["email"] = data["email"].strip().lower()
+
+    if "location" in data and isinstance(data["location"], str) and data["location"].strip():
+        clean["location"] = data["location"].strip().title()
+
+    if "education_level" in data and data["education_level"] in ("Undergraduate", "Postgraduate"):
+        clean["education_level"] = data["education_level"]
+
+    if "field" in data and data["field"] in ("Computer Science", "Data Science", "Business", "Engineering", "Medicine", "Law", "Arts"):
+        clean["field"] = data["field"]
+
+    if "institution" in data and isinstance(data["institution"], str) and data["institution"].strip():
+        clean["institution"] = data["institution"].strip()
+
+    if "gpa" in data:
         try:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            if not matches:
-                return None
-            
-            if multiple:
-                return ", ".join(matches)
-            
-            # Return first match or first group
-            match = matches[0]
-            if isinstance(match, tuple):
-                return next((m for m in match if m), None)
-            return match
-        except Exception as e:
-            logger.error(f"Pattern extraction error: {e}")
-            return None
+            clean["gpa"] = float(data["gpa"])
+        except (ValueError, TypeError):
+            pass
 
-    def get_missing_fields(self, extracted_data: dict) -> List[str]:
-        """Get list of missing data fields for follow-up questions"""
-        return [k for k, v in extracted_data.items() if not v]
+    if "target_countries" in data and isinstance(data["target_countries"], list):
+        clean["target_countries"] = [c for c in data["target_countries"] if isinstance(c, str)]
+
+    if "course_interest" in data and isinstance(data["course_interest"], str) and data["course_interest"].strip():
+        clean["course_interest"] = data["course_interest"].strip()
+
+    if "intake_timing" in data and isinstance(data["intake_timing"], str) and data["intake_timing"].strip():
+        clean["intake_timing"] = data["intake_timing"].strip()
+
+    if "test_type" in data and data["test_type"] in ("IELTS", "PTE", "TOEFL"):
+        clean["test_type"] = data["test_type"]
+
+    if "test_score" in data:
+        try:
+            clean["test_score"] = float(data["test_score"])
+            clean["test_stage"] = "completed"
+        except (ValueError, TypeError):
+            pass
+
+    if "test_stage" in data and data["test_stage"] in ("not_started", "preparing", "completed"):
+        clean["test_stage"] = data["test_stage"]
+
+    if "budget_range" in data and isinstance(data["budget_range"], str) and data["budget_range"].strip():
+        clean["budget_range"] = data["budget_range"].strip()
+        clean["budget_status"] = "disclosed"
+
+    if "budget_status" in data and data["budget_status"] in ("disclosed", "deferred"):
+        clean["budget_status"] = data["budget_status"]
+
+    if "scholarship_interest" in data and isinstance(data["scholarship_interest"], bool):
+        clean["scholarship_interest"] = data["scholarship_interest"]
+
+    if "callback_requested" in data and isinstance(data["callback_requested"], bool):
+        clean["callback_requested"] = data["callback_requested"]
+
+    if "competitor_mentioned" in data and isinstance(data["competitor_mentioned"], bool):
+        clean["competitor_mentioned"] = data["competitor_mentioned"]
+
+    if "next_con_session" in data and isinstance(data["next_con_session"], str) and data["next_con_session"].strip():
+        clean["next_con_session"] = data["next_con_session"].strip()
+
+    if "con_session_req" in data and data["con_session_req"] in _VALID_CON_SESSION_STATUSES:
+        clean["con_session_req"] = data["con_session_req"]
+
+    return clean
 
 
-# Global extractor instance
-_extractor: Optional[DataExtractor] = None
-
-
-def get_data_extractor() -> DataExtractor:
-    """Get or initialize global data extractor"""
-    global _extractor
-    if _extractor is None:
-        _extractor = DataExtractor()
-    return _extractor
-
-
-async def extract_data(text: str, language: str = "en") -> Dict[str, Any]:
-    """Convenience function for data extraction"""
-    extractor = get_data_extractor()
-    return await extractor.extract_all(text, language)
+def merge_extractions(regex_updates: Dict[str, Any], llm_updates: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge regex and LLM extractions. LLM takes priority for richer fields."""
+    merged = dict(regex_updates)
+    for key, value in llm_updates.items():
+        # LLM extraction overrides regex for these fields (LLM is smarter at parsing conversation)
+        if key not in merged or key in ("name", "location", "field", "course_interest", "institution",
+                                        "next_con_session", "con_session_req", "intake_timing"):
+            merged[key] = value
+    return merged

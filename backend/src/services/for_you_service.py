@@ -10,8 +10,7 @@ Database Tables Used:
 """
 
 from typing import Any, Dict, List, Optional
-from src.db.supabase_client import supabase
-from src.models.lead_schema import LeadSchema
+from src.db.mongo_client import get_db
 from src.services.lead_scoring import LeadScoringService
 import json
 import logging
@@ -23,52 +22,43 @@ class ForYouService:
     """Service for fetching and personalizing For You page data."""
 
     @staticmethod
-    def get_lead_by_session_id(session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_lead_by_session_id(call_sid: str) -> Optional[Dict[str, Any]]:
         """
-        Fetch lead data from Supabase by session ID.
+        Fetch caller data from MongoDB by call session ID.
 
         Args:
-            session_id: Twilio call session ID
+            call_sid: Twilio call session ID (matches calls.call_sid in callers collection)
 
         Returns:
-            Lead record with all profile information, or None if not found
+            Caller record with all profile information, or None if not found
         """
         try:
-            result = (
-                supabase.table("leads")
-                .select("*")
-                .eq("session_id", session_id)
-                .single()
-                .execute()
-            )
-            return result.data if result.data else None
+            db = get_db()
+            # Search in callers collection by call_sid within calls array
+            caller = await db.callers.find_one({"calls.call_sid": call_sid})
+            return caller if caller else None
         except Exception as e:
-            logger.error(f"Error fetching lead by session_id {session_id}: {e}")
+            logger.error(f"Error fetching caller by call_sid {call_sid}: {e}")
             return None
 
     @staticmethod
-    def get_lead_by_email(email: str) -> Optional[Dict[str, Any]]:
+    async def get_lead_by_email(email: str) -> Optional[Dict[str, Any]]:
         """
-        Fetch most recent lead data by email address.
+        Fetch most recent caller data by email address.
 
         Args:
             email: User email
 
         Returns:
-            Most recent lead record
+            Most recent caller record
         """
         try:
-            result = (
-                supabase.table("leads")
-                .select("*")
-                .eq("email", email)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-            return result.data[0] if result.data else None
+            db = get_db()
+            # Find caller by email, sorted by last_contact descending
+            caller = await db.callers.find_one({"email": email}, sort=[("last_contact", -1)])
+            return caller if caller else None
         except Exception as e:
-            logger.error(f"Error fetching lead by email {email}: {e}")
+            logger.error(f"Error fetching caller by email {email}: {e}")
             return None
 
     @staticmethod
@@ -534,17 +524,17 @@ async def get_for_you_data(
         cost_data: Pre-loaded cost data (from KB)
 
     Returns:
-        Complete For You dashboard or None if lead not found
+        Complete For You dashboard or None if caller not found
     """
-    # Fetch lead from database
+    # Fetch caller from database
     lead = None
     if session_id:
-        lead = ForYouService.get_lead_by_session_id(session_id)
+        lead = await ForYouService.get_lead_by_session_id(session_id)
     elif email:
-        lead = ForYouService.get_lead_by_email(email)
+        lead = await ForYouService.get_lead_by_email(email)
 
     if not lead:
-        logger.warning(f"No lead found for session_id={session_id}, email={email}")
+        logger.warning(f"No caller found for session_id={session_id}, email={email}")
         return None
 
     # Build dashboard with provided KB data

@@ -1,41 +1,36 @@
 from __future__ import annotations
 
-import uuid
+import re
 from datetime import datetime, timezone
-import locale
+from typing import Any
+
+from bson import ObjectId
 
 
-def generate_id() -> str:
-    return str(uuid.uuid4())
-
-
-def format_inr(amount: float | int) -> str:
-    """Format a number as Indian Rupee currency."""
-    # Python's locale-based formatting for INR
-    try:
-        return f"₹{amount:,.0f}"
-    except Exception:
-        return f"₹{amount}"
-
-
-def format_gbp(amount: float | int) -> str:
-    """Format a number as British Pound currency."""
-    try:
-        return f"£{amount:,.0f}"
-    except Exception:
-        return f"£{amount}"
-
-
-def now_iso() -> str:
+def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-async def sleep(seconds: float) -> None:
-    import asyncio
-    await asyncio.sleep(seconds)
+def normalize_phone(raw: str) -> str:
+    digits = re.sub(r"[^\d+]", "", raw or "")
+    if not digits:
+        return ""
+    if digits.startswith("+"):
+        return digits
+    if len(digits) == 10:
+        return f"+91{digits}"
+    if len(digits) == 12 and digits.startswith("91"):
+        return f"+{digits}"
+    return digits
 
 
-def truncate(text: str, max_len: int) -> str:
-    if len(text) <= max_len:
-        return text
-    return text[: max_len - 3] + "..."
+def serialize_mongo(value: Any) -> Any:
+    if isinstance(value, ObjectId):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {key: serialize_mongo(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [serialize_mongo(item) for item in value]
+    return value

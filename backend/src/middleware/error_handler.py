@@ -5,18 +5,17 @@ from fastapi.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.utils.logger import logger
-from src.config.env import env
 
 
 def _is_twilio_webhook(path: str) -> bool:
-    return path.startswith("/webhooks/twilio") or path.startswith("/api/twilio")
+    return path.startswith("/webhooks/twilio")
 
 
 def _twiml_error_response() -> Response:
     body = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         "<Response>"
-        "<Say>Sorry, we are facing a technical issue. Please try again later.</Say>"
+        "<Say voice=\"Polly.Raveena\">Sorry, we are facing a technical issue. Please try again shortly.</Say>"
         "<Hangup/>"
         "</Response>"
     )
@@ -26,16 +25,9 @@ def _twiml_error_response() -> Response:
 class ErrorHandlerMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         try:
-            response = await call_next(request)
-            return response
+            return await call_next(request)
         except Exception as exc:
             logger.error(f"Unhandled error on {request.url.path}: {exc}")
-
             if _is_twilio_webhook(request.url.path):
                 return _twiml_error_response()
-
-            detail = "Internal server error" if env.NODE_ENV == "production" else str(exc)
-            return JSONResponse(
-                status_code=500,
-                content={"success": False, "error": detail},
-            )
+            return JSONResponse(status_code=500, content={"success": False, "error": "Internal server error"})
