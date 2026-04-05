@@ -10,15 +10,85 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 
-from src.services.for_you_service import ForYouService, get_for_you_data
+from src.services.for_you_service import ForYouService
 from src.services.kb_service import KBService
 from src.services.lead_scoring import LeadScoringService
+from src.services.calendar_service import CalendarService
 from src.db.mongo_client import get_db
 from src.models.responses import DataResponse
 from src.utils.logger import logger
 
 router = APIRouter(prefix="/api/v1/for-you", tags=["for-you"])
 
+
+@router.get("/scholarships")
+async def get_all_scholarships(
+    session_id: Optional[str] = Query(None),
+    email: Optional[str] = Query(None),
+) -> dict:
+    """
+    Fetch all scholarships for the catalogue.
+    """
+    scholarships = KBService.load_scholarships()
+    
+    # If session/email provided, personalized matching
+    lead = None
+    if session_id:
+        lead = await ForYouService.get_lead_by_session_id(session_id)
+    elif email:
+        lead = await ForYouService.get_lead_by_email(email)
+    
+    if lead:
+        matched = ForYouService.match_scholarships_by_profile(lead, scholarships)
+        return {"count": len(matched), "scholarships": matched}
+    
+    # Default tags if no lead
+    for s in scholarships:
+        s["source"] = s.get("source") or ("india" if "India" in str(s.get("eligible_nationalities", "")) or s.get("india_specific") else "university")
+        s["match_score"] = 0
+        
+    return {"count": len(scholarships), "scholarships": scholarships}
+
+
+@router.get("/schedule")
+async def get_schedule(
+    email: Optional[str] = Query(None),
+) -> dict:
+    """Fetch user's scheduled sessions from DB."""
+    if not email:
+        return {"sessions": []}
+        
+    db = get_db()
+    sessions = await db.user_sessions.find({"user_email": email}).sort("date", 1).to_list(100)
+    
+    # Simple JSON conversion for ObjectId-free docs
+    for s in sessions:
+        s.pop("_id", None)
+        
+    return {"sessions": sessions}
+
+
+@router.post("/schedule")
+async def create_schedule(request: ScheduleRequest) -> dict:
+    """Schedule a new consultation and store in DB."""
+    session = await CalendarService.schedule_meeting(
+        email=request.email,
+        date=request.date,
+        time=request.time,
+        consultant=request.consultant,
+        university=request.university
+    )
+    
+    db = get_db()
+    # Save session to MongoDB
+    doc = {
+        **session,
+        "user_email": request.email,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.user_sessions.insert_one(doc)
+    
+    return session
 
 # ─── Request/Response Models ───────────────────────────────────────────
 
@@ -58,8 +128,37 @@ class ForYouResponse(BaseModel):
             }
         }
 
+class ScheduleRequest(BaseModel):
+    """Request to schedule a consultation."""
+    email: EmailStr
+    date: str
+    time: str
+    consultant: str
+    university: str
+
+class AskFatehRequest(BaseModel):
+    """Request for the Ask Fateh chatbot."""
+    message: str
+    history: Optional[list[dict[str, str]]] = None
 
 # ─── Endpoints ─────────────────────────────────────────────────────────
+
+@router.post("/ask-fateh")
+async def ask_fateh(request: AskFatehRequest) -> dict:
+    """
+    Ask the Fateh AI Advisor a question.
+    Uses RAG with the comprehensive KB and Groq LLM.
+    """
+    from src.services.ask_fateh_service import AskFatehService
+    
+    logger.info(f"Ask Fateh query: {request.message[:50]}...")
+    
+    reply = await AskFatehService.ask(
+        user_query=request.message,
+        history=request.history
+    )
+    
+    return {"reply": reply}
 
 
 @router.get("/dashboard")

@@ -119,6 +119,23 @@ class KBService:
         return cost_data
 
     @classmethod
+    def load_comprehensive_kb(cls, force_reload: bool = False) -> Dict[str, Any]:
+        """
+        Load the full comprehensive KB file (fateh_kb_v4_comprehensive.json).
+        This contains identity, scripts, comparison tables, etc.
+        """
+        if not force_reload and "comprehensive_kb" in cls._cache:
+            return cls._cache["comprehensive_kb"]
+
+        data = cls._load_json_file("fateh_kb_v4_comprehensive.json")
+        if not data:
+            data = {}
+
+        cls._cache["comprehensive_kb"] = data
+        logger.info("Loaded comprehensive KB v4")
+        return data
+
+    @classmethod
     def load_all(cls, force_reload: bool = False) -> Dict[str, Any]:
         """
         Load all knowledge bases at once.

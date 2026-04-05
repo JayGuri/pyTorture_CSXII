@@ -20,25 +20,35 @@ function offlineReply(text) {
   return "Thanks for reaching out. A Fateh advisor can go deeper on a counselling call. Meanwhile, browse Scholarships, Visa help, and Financial clarity on this page for structured answers.";
 }
 
-export async function askFatehAgent(userMessage, { signal } = {}) {
-  const url = import.meta.env.VITE_FATEH_AGENT_URL;
+export async function askFatehAgent(userMessage, { signal, history = [] } = {}) {
+  // Use backend if environment is set, otherwise default to relative path for current host
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+  const endpoint = `${baseUrl}/api/v1/for-you/ask-fateh`;
+  
   const trimmed = String(userMessage || "").trim();
   if (!trimmed) return "";
 
-  if (url) {
-    const res = await fetch(url, {
+  try {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: trimmed }),
+      body: JSON.stringify({ 
+        message: trimmed,
+        history: history 
+      }),
       signal,
     });
-    if (!res.ok) throw new Error("Agent unavailable");
-    const data = await res.json().catch(() => ({}));
-    const reply = data.reply ?? data.message ?? data.text;
-    if (typeof reply === "string" && reply.trim()) return reply.trim();
-    throw new Error("Empty agent response");
+    
+    if (res.ok) {
+      const data = await res.json();
+      return data.reply || data.message || "I couldn't generate a reply.";
+    }
+  } catch (e) {
+    if (e?.name === "AbortError") throw e;
+    console.error("AskFateh error:", e);
   }
 
-  await new Promise((r) => setTimeout(r, 450));
+  // Fallback to offline logic
+  await new Promise((r) => setTimeout(r, 600));
   return offlineReply(trimmed);
 }
