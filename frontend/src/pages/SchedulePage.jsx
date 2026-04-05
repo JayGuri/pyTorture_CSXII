@@ -17,11 +17,13 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { apiContactEmail } from "../lib/userContact.js";
 import { useUserSchedule, useScheduleMeeting } from "../hooks/useForYouDashboard";
 
 const SchedulePage = () => {
   const { user } = useAuth();
-  const { sessions, loading, refresh } = useUserSchedule(user?.email);
+  const contact = apiContactEmail(user);
+  const { sessions, loading, refresh } = useUserSchedule(contact);
   const { schedule, scheduling } = useScheduleMeeting();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -40,7 +42,7 @@ const SchedulePage = () => {
     try {
       const result = await schedule({
         ...formData,
-        email: user?.email
+        email: contact,
       });
       setIsModalOpen(false);
       setLastMeetingCode(result.id);
@@ -97,7 +99,7 @@ const SchedulePage = () => {
             </div>
             <div>
               <p className="font-bold text-sm tracking-wide uppercase">Engagement Provisioned</p>
-              <p className="text-xs text-white/60 italic mt-0.5">Invitation dispatched to {user?.email} & Calendar Synced.</p>
+              <p className="text-xs text-white/60 italic mt-0.5">Invitation dispatched to {user?.phone || user?.email || "your account"} & Calendar Synced.</p>
             </div>
             <button onClick={() => setShowSuccess(false)} className="ml-auto text-white/30 hover:text-white"><X className="h-4 w-4" /></button>
           </motion.div>
@@ -219,7 +221,7 @@ const SchedulePage = () => {
                   <div className="space-y-8 relative font-mono">
                     <div className="absolute left-1.5 top-2 bottom-0 w-px bg-white/10" />
                     {(showSuccess ? [
-                      { time: "Just now", event: "INVITE_SENT", desc: `Invitation dispatched to ${user?.email}.` },
+                      { time: "Just now", event: "INVITE_SENT", desc: `Invitation dispatched to ${user?.phone || user?.email || "your account"}.` },
                       { time: "Just now", event: "GMEET_GEN", desc: `GMeet token ${lastMeetingCode || '...'} provisioned.` },
                       { time: "Just now", event: "CAL_SYNC", desc: "Calendar event mirrored successfully." }
                     ] : [

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Award, Building2, Flag, Filter, Sparkles, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useAllScholarships } from "../hooks/useForYouDashboard";
+import { apiContactEmail } from "../lib/userContact.js";
 import { SCHOLARSHIPS as STATIC_SCHOLARSHIPS } from "../data/forYouPrograms";
 
 const FILTERS = [
@@ -17,7 +18,7 @@ export default function ScholarshipsPage() {
   const { user } = useAuth();
   const { scholarships: backendScholarships, loading } = useAllScholarships(
     user?.sessionId,
-    user?.email
+    apiContactEmail(user),
   );
   const [filter, setFilter] = useState("eligible");
 

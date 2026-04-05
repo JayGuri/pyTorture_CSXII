@@ -4,7 +4,10 @@
  */
 export const ADMIN_EMAIL = "admin@fateh.education";
 
+/** Sign-in uses mobile + password; admin demo matches this number. */
+export const ADMIN_PHONE = "9000000001";
+
 export const ADMIN_PASSWORD = "FatehPS1#Ops";
 
-/** Shown on the admin login screen (same pattern as student demo hint). */
-export const ADMIN_LOGIN_HINT = `${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`;
+/** Shown next to student demo hints on the login page. */
+export const ADMIN_LOGIN_HINT = `${ADMIN_PHONE} / ${ADMIN_PASSWORD}`;

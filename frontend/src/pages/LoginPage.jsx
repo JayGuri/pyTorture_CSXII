@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth, DEMO_ACCOUNTS_HINT } from "../context/AuthContext";
 import PasswordField from "../components/auth/PasswordField";
-import { validateEmail, validateLoginPassword } from "../lib/formValidation";
+import { validateLoginPhone, validateLoginPassword } from "../lib/formValidation";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -10,16 +10,16 @@ export default function LoginPage() {
   const location = useLocation();
   const from = location.state?.from || "/for-you";
 
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setError("");
-    const emailRes = validateEmail(email);
-    if (!emailRes.ok) {
-      setError(emailRes.error);
+    const phoneRes = validateLoginPhone(phone);
+    if (!phoneRes.ok) {
+      setError(phoneRes.error);
       return;
     }
     const passRes = validateLoginPassword(password);
@@ -27,7 +27,7 @@ export default function LoginPage() {
       setError(passRes.error);
       return;
     }
-    const res = login(emailRes.value, password);
+    const res = login(phoneRes.value, password);
     if (!res.ok) {
       setError(res.error);
       return;
@@ -75,20 +75,20 @@ export default function LoginPage() {
               </p>
             ) : null}
             <div>
-              <label htmlFor="login-email" className="mb-2 block text-[0.72rem] uppercase tracking-[0.12em] text-fateh-muted">
-                Email
+              <label htmlFor="login-phone" className="mb-2 block text-[0.72rem] uppercase tracking-[0.12em] text-fateh-muted">
+                Mobile number
               </label>
               <input
-                id="login-email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value.replace(/\s/g, "").slice(0, 254))}
+                id="login-phone"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/[^\d+\s-]/g, "").slice(0, 20))}
                 required
-                maxLength={254}
+                maxLength={20}
                 className="w-full rounded-sm border border-fateh-border bg-fateh-paper/60 px-4 py-3 text-fateh-ink outline-none transition focus:border-fateh-gold focus:ring-1 focus:ring-fateh-gold/30"
-                placeholder="you@example.com"
+                placeholder="e.g. 9876543210"
               />
             </div>
             <PasswordField
@@ -115,7 +115,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-10 rounded-lg border border-dashed border-fateh-border bg-fateh-gold-pale/35 px-4 py-4 text-center text-[0.75rem] leading-relaxed text-fateh-muted normal-case">
-          <span className="font-medium text-fateh-ink">Demo accounts:</span> {DEMO_ACCOUNTS_HINT}
+          <span className="font-medium text-fateh-ink">Demo (mobile / password):</span> {DEMO_ACCOUNTS_HINT}
         </p>
       </div>
     </div>
