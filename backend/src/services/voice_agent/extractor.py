@@ -316,7 +316,9 @@ def parse_llm_extraction(raw: str) -> Dict[str, Any]:
         clean["competitor_mentioned"] = data["competitor_mentioned"]
 
     if "next_con_session" in data and isinstance(data["next_con_session"], str) and data["next_con_session"].strip():
-        clean["next_con_session"] = data["next_con_session"].strip()
+        val = data["next_con_session"].strip()
+        if val.lower() != "none":
+            clean["next_con_session"] = val
 
     if "con_session_req" in data and data["con_session_req"] in _VALID_CON_SESSION_STATUSES:
         clean["con_session_req"] = data["con_session_req"]

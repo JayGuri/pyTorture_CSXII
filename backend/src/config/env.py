@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     GROQ_STT_API_KEY: str = Field(default="")
     GROQ_API_KEY: str = Field(default="")
+    GROQ_API_KEY_FALLBACK: str = Field(default="")
     GROQ_LLM_MODEL: str = Field(default="llama-3.1-8b-instant")
     GROQ_LLM_BASE_URL: str = Field(default="https://api.groq.com/openai/v1")
     GROQ_LLM_TIMEOUT_SEC: float = Field(default=2.5)
