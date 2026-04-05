@@ -21,6 +21,7 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 const SignupPage = lazy(() => import("./pages/SignupPage"));
 const ForYouPage = lazy(() => import("./pages/ForYouPage"));
 const ScholarshipsPage = lazy(() => import("./pages/ScholarshipsPage"));
+const SchedulePage = lazy(() => import("./pages/SchedulePage"));
 
 const SectionLoader = () => (
   <div className="flex h-32 w-full items-center justify-center bg-fateh-paper/50">
@@ -72,6 +73,16 @@ function App() {
             <Layout>
               <ProtectedRoute>
                 <ScholarshipsPage />
+              </ProtectedRoute>
+            </Layout>
+          }
+        />
+        <Route
+          path="/for-you/schedule"
+          element={
+            <Layout>
+              <ProtectedRoute>
+                <SchedulePage />
               </ProtectedRoute>
             </Layout>
           }

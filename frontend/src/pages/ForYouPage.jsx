@@ -12,6 +12,7 @@ import {
   Search,
   Trash2,
   GraduationCap,
+  Calendar,
   MapPin,
   FileText,
   ChevronRight,
@@ -166,10 +167,7 @@ export default function ForYouPage() {
     university_college_london: { lat: 51.5246, lng: -0.134 },
     imperial_college_london: { lat: 51.4988, lng: -0.1749 },
     lse: { lat: 51.5144, lng: -0.1166 },
-    london_school_of_economics_and_political_science: {
-      lat: 51.5144,
-      lng: -0.1166,
-    },
+    london_school_of_economics_and_political_science: { lat: 51.5144, lng: -0.1166 },
     kings_college_london: { lat: 51.5115, lng: -0.116 },
     kcl: { lat: 51.5115, lng: -0.116 },
     university_of_edinburgh: { lat: 55.9442, lng: -3.1883 },
@@ -188,6 +186,22 @@ export default function ForYouPage() {
     university_college_cork: { lat: 51.8921, lng: -8.4933 },
     university_of_limerick: { lat: 52.6739, lng: -8.5721 },
     dublin_city_university: { lat: 53.3851, lng: -6.257 },
+    university_of_leicester: { lat: 52.6215, lng: -1.1242 },
+    queens_university_belfast: { lat: 54.5847, lng: -5.9351 },
+    university_of_reading: { lat: 51.442, lng: -0.942 },
+    university_of_aberdeen: { lat: 57.1648, lng: -2.1005 },
+    university_of_surrey: { lat: 51.2435, lng: -0.5898 },
+    university_of_strathclyde: { lat: 55.8622, lng: -4.2444 },
+    university_of_dundee: { lat: 56.4582, lng: -2.9818 },
+    university_of_st_andrews: { lat: 56.3392, lng: -2.7937 },
+    university_of_essex: { lat: 51.8776, lng: 0.9442 },
+    university_of_heriot_watt: { lat: 55.9103, lng: -3.3213 },
+    university_of_ulster: { lat: 55.1501, lng: -6.6713 },
+    university_of_northumbria: { lat: 54.9781, lng: -1.6063 },
+    maynooth_university: { lat: 53.3846, lng: -6.5991 },
+    royal_college_of_surgeons_in_ireland: { lat: 53.339, lng: -6.2625 },
+    tudublin: { lat: 53.3541, lng: -6.2785 },
+    technological_university_dublin: { lat: 53.3541, lng: -6.2785 },
   };
 
   const mapMarkers = useMemo(() => {
@@ -585,11 +599,11 @@ export default function ForYouPage() {
                 Ask Fateh
               </button>
               <Link
-                to="/#register"
-                className="inline-flex items-center gap-2 rounded-lg bg-fateh-gold px-6 py-3 text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-fateh-ink shadow-lg shadow-fateh-gold/20 transition hover:bg-fateh-gold-light"
+                to="/for-you/schedule"
+                className="inline-flex items-center gap-2 rounded-lg bg-fateh-gold px-6 py-3 text-[0.72rem] font-bold uppercase tracking-[0.12em] text-fateh-ink transition hover:bg-fateh-gold-light"
               >
-                Book counselling
-                <ChevronRight className="h-4 w-4" strokeWidth={2} />
+                <CalendarPlus className="h-4 w-4" strokeWidth={2} />
+                Schedule
               </Link>
             </div>
           </motion.div>
@@ -625,8 +639,14 @@ export default function ForYouPage() {
             {
               label: "Scholarships",
               Icon: Landmark,
-              sub: "Full list",
-              onClick: () => scrollToId("fy-scholarships-teaser"),
+              sub: "Full catalogue",
+              href: "/for-you/scholarships",
+            },
+            {
+              label: "Schedule",
+              Icon: Calendar,
+              sub: "Consultations",
+              href: "/for-you/schedule",
             },
             {
               label: "Explore site",

@@ -19,7 +19,10 @@ export default function AskFatehModal({ open, onClose }) {
   useEffect(() => {
     if (!open) return;
     const t = requestAnimationFrame(() => {
-      listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+      listRef.current?.scrollTo({
+        top: listRef.current.scrollHeight,
+        behavior: "smooth",
+      });
     });
     return () => cancelAnimationFrame(t);
   }, [open, messages, loading]);
@@ -55,7 +58,8 @@ export default function AskFatehModal({ open, onClose }) {
     const ac = new AbortController();
     abortRef.current = ac;
     try {
-      const reply = await askFatehAgent(text, { signal: ac.signal });
+      const history = messages.map((m) => ({ role: m.role, content: m.text }));
+      const reply = await askFatehAgent(text, { signal: ac.signal, history });
       setMessages((m) => [...m, { role: "assistant", text: reply }]);
     } catch (e) {
       if (e?.name === "AbortError") return;
@@ -74,7 +78,7 @@ export default function AskFatehModal({ open, onClose }) {
 
   return (
     <AnimatePresence>
-      {open ? (
+      {open ?
         <div key="ask-fateh" className="contents">
           <motion.button
             type="button"
@@ -101,10 +105,15 @@ export default function AskFatehModal({ open, onClose }) {
                   <MessageCircle className="h-5 w-5" strokeWidth={1.5} />
                 </span>
                 <div>
-                  <h2 id="ask-fateh-title" className="font-fateh-serif text-lg font-semibold normal-case">
+                  <h2
+                    id="ask-fateh-title"
+                    className="font-fateh-serif text-lg font-semibold normal-case"
+                  >
                     Ask Fateh
                   </h2>
-                  <p className="text-[0.65rem] uppercase tracking-wider text-white/45">Doubts &amp; clarifications</p>
+                  <p className="text-[0.65rem] uppercase tracking-wider text-white/45">
+                    Doubts &amp; clarifications
+                  </p>
                 </div>
               </div>
               <button
@@ -127,28 +136,30 @@ export default function AskFatehModal({ open, onClose }) {
                 >
                   <div
                     className={`max-w-[90%] rounded-xl px-4 py-3 text-sm leading-relaxed normal-case ${
-                      msg.role === "user"
-                        ? "bg-fateh-accent text-white"
-                        : "border border-fateh-border/80 bg-white text-fateh-ink"
+                      msg.role === "user" ?
+                        "bg-fateh-accent text-white"
+                      : "border border-fateh-border/80 bg-white text-fateh-ink"
                     }`}
                   >
                     {msg.text}
                   </div>
                 </div>
               ))}
-              {loading ? (
+              {loading ?
                 <div className="flex justify-start">
                   <div className="inline-flex items-center gap-2 rounded-xl border border-fateh-border/80 bg-white px-4 py-3 text-sm text-fateh-muted">
                     <Loader2 className="h-4 w-4 animate-spin text-fateh-gold" />
                     Thinking…
                   </div>
                 </div>
-              ) : null}
+              : null}
             </div>
 
-            {error ? (
-              <p className="border-t border-fateh-border/60 bg-red-50 px-5 py-2 text-xs text-red-800">{error}</p>
-            ) : null}
+            {error ?
+              <p className="border-t border-fateh-border/60 bg-red-50 px-5 py-2 text-xs text-red-800">
+                {error}
+              </p>
+            : null}
 
             <div className="border-t border-fateh-border/90 p-4">
               <div className="flex gap-2">
@@ -170,12 +181,13 @@ export default function AskFatehModal({ open, onClose }) {
                 </button>
               </div>
               <p className="mt-2 text-[0.65rem] text-fateh-muted normal-case">
-                Not legal or immigration advice — confirm with your counsellor and official sources.
+                Not legal or immigration advice — confirm with your counsellor
+                and official sources.
               </p>
             </div>
           </motion.div>
         </div>
-      ) : null}
+      : null}
     </AnimatePresence>
   );
 }

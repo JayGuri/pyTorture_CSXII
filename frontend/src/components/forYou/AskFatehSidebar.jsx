@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { gsap } from "gsap";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
 import { askFatehAgent } from "../../lib/fatehAgent";
@@ -67,7 +73,7 @@ export default function AskFatehSidebar({ open, onClose }) {
 
     // Capture individual elements for staggered reveal
     const titleLines = Array.from(panel.querySelectorAll(".afs-stagger-item"));
-    
+
     // Initial state for content items (matches StaggeredMenu itemEls)
     if (titleLines.length) {
       gsap.set(titleLines, { yPercent: 140, rotate: 5, opacity: 0 });
@@ -78,10 +84,10 @@ export default function AskFatehSidebar({ open, onClose }) {
     // 1. Pre-layers animation (the signature staggered sliding colors)
     layers.forEach((el, i) => {
       tl.fromTo(
-        el, 
-        { xPercent: 100 }, 
-        { xPercent: 0, duration: 0.55, ease: "power4.out" }, 
-        i * 0.08
+        el,
+        { xPercent: 100 },
+        { xPercent: 0, duration: 0.55, ease: "power4.out" },
+        i * 0.08,
       );
     });
 
@@ -94,7 +100,7 @@ export default function AskFatehSidebar({ open, onClose }) {
       panel,
       { xPercent: 100 },
       { xPercent: 0, duration: panelDuration, ease: "power4.out" },
-      panelInsertTime
+      panelInsertTime,
     );
 
     // 3. Staggered reveal of header and chat elements
@@ -110,7 +116,7 @@ export default function AskFatehSidebar({ open, onClose }) {
           ease: "power4.out",
           stagger: { each: 0.08, from: "start" },
         },
-        itemsStart
+        itemsStart,
       );
     }
 
@@ -143,7 +149,7 @@ export default function AskFatehSidebar({ open, onClose }) {
     const tl = gsap.timeline({
       onComplete: () => {
         busyRef.current = false;
-      }
+      },
     });
 
     const titleLines = Array.from(panel.querySelectorAll(".afs-stagger-item"));
@@ -156,26 +162,37 @@ export default function AskFatehSidebar({ open, onClose }) {
         opacity: 0,
         duration: 0.4,
         ease: "power2.in",
-        stagger: { each: 0.04, from: "end" }
+        stagger: { each: 0.04, from: "end" },
       });
     }
 
     // 2. Main panel exit
-    tl.to(panel, {
-      xPercent: 100,
-      duration: 0.5,
-      ease: "power3.inOut"
-    }, "-=0.2");
+    tl.to(
+      panel,
+      {
+        xPercent: 100,
+        duration: 0.5,
+        ease: "power3.inOut",
+      },
+      "-=0.2",
+    );
 
     // 3. Pre-layers exit (staggered reverse)
     if (layers.length) {
-      layers.slice().reverse().forEach((layer, i) => {
-        tl.to(layer, {
-          xPercent: 100,
-          duration: 0.45,
-          ease: "power3.inOut"
-        }, "-=0.35");
-      });
+      layers
+        .slice()
+        .reverse()
+        .forEach((layer, i) => {
+          tl.to(
+            layer,
+            {
+              xPercent: 100,
+              duration: 0.45,
+              ease: "power3.inOut",
+            },
+            "-=0.35",
+          );
+        });
     }
 
     closeTweenRef.current = tl;
@@ -187,9 +204,19 @@ export default function AskFatehSidebar({ open, onClose }) {
     spinTweenRef.current?.kill();
     if (opening) {
       // Rotate 225deg to turn + into x (same as StaggeredMenu)
-      spinTweenRef.current = gsap.to(icon, { rotate: 225, duration: 0.8, ease: "power4.out", overwrite: "auto" });
+      spinTweenRef.current = gsap.to(icon, {
+        rotate: 225,
+        duration: 0.8,
+        ease: "power4.out",
+        overwrite: "auto",
+      });
     } else {
-      spinTweenRef.current = gsap.to(icon, { rotate: 0, duration: 0.35, ease: "power3.inOut", overwrite: "auto" });
+      spinTweenRef.current = gsap.to(icon, {
+        rotate: 0,
+        duration: 0.35,
+        ease: "power3.inOut",
+        overwrite: "auto",
+      });
     }
   }, []);
 
@@ -239,7 +266,10 @@ export default function AskFatehSidebar({ open, onClose }) {
     if (!open) return;
     const t = requestAnimationFrame(() => {
       // Maintain scroll position at bottom
-      listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+      listRef.current?.scrollTo({
+        top: listRef.current.scrollHeight,
+        behavior: "smooth",
+      });
     });
     return () => cancelAnimationFrame(t);
   }, [open, messages, loading]);
@@ -275,7 +305,16 @@ export default function AskFatehSidebar({ open, onClose }) {
     const ac = new AbortController();
     abortRef.current = ac;
     try {
-      const reply = await askFatehAgent(text, { signal: ac.signal });
+      // Convert messages to { role, content } for the backend LLM
+      const history = messages.map((m) => ({
+        role: m.role,
+        content: m.text,
+      }));
+
+      const reply = await askFatehAgent(text, {
+        signal: ac.signal,
+        history: history,
+      });
       setMessages((m) => [...m, { role: "assistant", text: reply }]);
     } catch (e) {
       if (e?.name === "AbortError") return;
@@ -294,12 +333,16 @@ export default function AskFatehSidebar({ open, onClose }) {
 
   return (
     <div className="ask-fateh-sidebar-wrapper" data-open={open || undefined}>
-      <div 
-        className="ask-fateh-sidebar-overlay" 
-        onClick={onClose} 
-        style={{ opacity: open ? 1 : 0, transition: 'opacity 0.6s ease', pointerEvents: open ? 'auto' : 'none' }}
+      <div
+        className="ask-fateh-sidebar-overlay"
+        onClick={onClose}
+        style={{
+          opacity: open ? 1 : 0,
+          transition: "opacity 0.6s ease",
+          pointerEvents: open ? "auto" : "none",
+        }}
       />
-      
+
       {/* 3-layer staggering pre-layers (matches StaggeredMenu depth) */}
       <div ref={preLayersRef} className="afs-prelayers" aria-hidden="true">
         <div className="afs-prelayer" style={{ background: "#0b0e1a" }} />
@@ -313,10 +356,10 @@ export default function AskFatehSidebar({ open, onClose }) {
           aria-label={open ? "Close chat" : "Open chat"}
           onClick={onClose}
           type="button"
-          style={{ 
-            opacity: open ? 1 : 0, 
-            visibility: open ? 'visible' : 'hidden', 
-            transition: 'opacity 0.4s ease 0.2s' 
+          style={{
+            opacity: open ? 1 : 0,
+            visibility: open ? "visible" : "hidden",
+            transition: "opacity 0.4s ease 0.2s",
           }}
         >
           <span className="afs-toggle-textWrap" aria-hidden="true">
@@ -338,24 +381,31 @@ export default function AskFatehSidebar({ open, onClose }) {
       <aside ref={panelRef} className="ask-fateh-sidebar-panel">
         <div className="afs-panel-inner">
           <div className="afs-chat-header">
-             <div className="afs-stagger-item">
-               <h2 className="afs-chat-title">Ask Fateh</h2>
-             </div>
-             <div className="afs-stagger-item">
-               <p className="afs-chat-subtitle">AI Advisor · Doubts & Clarifications</p>
-             </div>
+            <div className="afs-stagger-item">
+              <h2 className="afs-chat-title">Ask Fateh</h2>
+            </div>
+            <div className="afs-stagger-item">
+              <p className="afs-chat-subtitle">
+                AI Advisor · Doubts & Clarifications
+              </p>
+            </div>
           </div>
 
           <div ref={listRef} className="afs-messages-container">
             {messages.map((msg, i) => (
-              <div key={i} className="afs-message-row afs-stagger-item" data-role={msg.role}>
-                <div className="afs-message-bubble">
-                  {msg.text}
-                </div>
+              <div
+                key={i}
+                className="afs-message-row afs-stagger-item"
+                data-role={msg.role}
+              >
+                <div className="afs-message-bubble">{msg.text}</div>
               </div>
             ))}
             {loading && (
-              <div className="afs-message-row afs-stagger-item" data-role="assistant">
+              <div
+                className="afs-message-row afs-stagger-item"
+                data-role="assistant"
+              >
                 <div className="afs-message-bubble inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-[#c8a45a]" />
                   Thinking…
@@ -363,9 +413,9 @@ export default function AskFatehSidebar({ open, onClose }) {
               </div>
             )}
             {error && (
-               <div className="px-4 py-2 text-xs text-red-600 bg-red-50 rounded-lg mx-6 mt-2 afs-stagger-item">
-                 {error}
-               </div>
+              <div className="px-4 py-2 text-xs text-red-600 bg-red-50 rounded-lg mx-6 mt-2 afs-stagger-item">
+                {error}
+              </div>
             )}
           </div>
 
@@ -379,6 +429,7 @@ export default function AskFatehSidebar({ open, onClose }) {
                 placeholder="Type your question…"
                 className="afs-input"
               />
+
               <button
                 type="button"
                 onClick={send}

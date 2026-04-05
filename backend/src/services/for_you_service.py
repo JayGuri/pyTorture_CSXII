@@ -216,7 +216,11 @@ class ForYouService:
             if scholarship.get("india_specific", {}).get("india_eligible"):
                 match_score += 20
 
-            matched.append({**scholarship, "match_score": match_score})
+            matched.append({
+                **scholarship,
+                "match_score": match_score,
+                "source": scholarship.get("source") or ("india" if "India" in str(scholarship.get("eligible_nationalities", "")) or scholarship.get("india_specific") else "university")
+            })
 
         # Sort by match score (higher is better)
         matched.sort(key=lambda s: s.get("match_score", 0), reverse=True)
@@ -476,7 +480,7 @@ class ForYouService:
             },
             "recommendations": {
                 "universities": enriched_unis,
-                "scholarships": matched_scholarships[:5],
+                "scholarships": matched_scholarships[:20],
                 "costs": cost_recommendations,
             },
             "insights": insights,

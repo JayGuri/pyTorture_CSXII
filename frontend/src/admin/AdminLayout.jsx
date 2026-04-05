@@ -134,7 +134,6 @@ export default function AdminLayout() {
               <LogOut className="h-4 w-4" aria-hidden />
               Sign out
             </button>
-            <LinkToSite />
           </div>
         </aside>
 
@@ -165,16 +164,5 @@ export default function AdminLayout() {
 
       <AdminToast message={toast} onDismiss={() => setToast(null)} />
     </div>
-  );
-}
-
-function LinkToSite() {
-  return (
-    <a
-      href="/"
-      className="mt-3 block text-center text-[0.72rem] text-white/45 underline-offset-2 hover:text-fateh-gold-light hover:underline"
-    >
-      ← Public site
-    </a>
   );
 }

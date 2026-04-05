@@ -20,7 +20,6 @@ export function useForYouDashboard(sessionId, email, enabled = true) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch dashboard data from backend
   const fetchDashboard = useCallback(async () => {
     if (!enabled || (!sessionId && !email)) {
       setData(null);
@@ -32,7 +31,6 @@ export function useForYouDashboard(sessionId, email, enabled = true) {
 
     try {
       const response = await fetchForYouDashboard(sessionId, email);
-      // API returns the dashboard directly without success wrapper
       setData(response);
     } catch (err) {
       console.error("[useForYouDashboard] Error:", err);
@@ -42,17 +40,14 @@ export function useForYouDashboard(sessionId, email, enabled = true) {
     }
   }, [sessionId, email, enabled]);
 
-  // Fetch on mount or when sessionId/email changes
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  // Refresh dashboard data
   const refresh = useCallback(() => {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  // Update completeness scores
   const updateCompleteness = useCallback(async () => {
     if (!data?.lead_profile?.id) {
       setError("Lead ID not found");
@@ -61,7 +56,6 @@ export function useForYouDashboard(sessionId, email, enabled = true) {
 
     try {
       const updated = await updateLeadCompleteness(data.lead_profile.id);
-      // Update local data with new scores
       setData((prev) => ({
         ...prev,
         lead_profile: updated,
@@ -79,57 +73,33 @@ export function useForYouDashboard(sessionId, email, enabled = true) {
   }, [data?.lead_profile?.id]);
 
   return {
-    // Data
     dashboard: data,
     leadProfile: data?.lead_profile,
     recommendations: data?.recommendations,
     insights: data?.insights,
     nextSteps: data?.next_steps,
     personalization: data?.personalization,
-
-    // States
     loading,
     error,
     hasData: !!data,
-
-    // Actions
     refresh,
     updateCompleteness,
   };
 }
 
-/**
- * Hook for simpler usage - just get lead profile data
- * @param {string} sessionId - Twilio session ID
- * @param {string} email - User email
- * @returns {object} Lead profile data and loading state
- */
 export function useLeadProfile(sessionId, email) {
   const { leadProfile, loading, error, refresh } = useForYouDashboard(
     sessionId,
     email
   );
-
-  return {
-    profile: leadProfile,
-    loading,
-    error,
-    refresh,
-  };
+  return { profile: leadProfile, loading, error, refresh };
 }
 
-/**
- * Hook for just recommendations
- * @param {string} sessionId - Twilio session ID
- * @param {string} email - User email
- * @returns {object} Recommendations data
- */
 export function useRecommendations(sessionId, email) {
   const { recommendations, loading, error } = useForYouDashboard(
     sessionId,
     email
   );
-
   return {
     universities: recommendations?.universities || [],
     scholarships: recommendations?.scholarships || [],
@@ -137,4 +107,83 @@ export function useRecommendations(sessionId, email) {
     loading,
     error,
   };
+}
+
+export function useAllScholarships(sessionId, email) {
+  const [scholarships, setScholarships] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function fetchAll() {
+      setLoading(true);
+      try {
+        const query = new URLSearchParams();
+        if (sessionId) query.set("session_id", sessionId);
+        if (email) query.set("email", email);
+        const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/for-you/scholarships?${query.toString()}`);
+        const data = await response.json();
+        setScholarships(data.scholarships || []);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchAll();
+  }, [sessionId, email]);
+
+  return { scholarships, loading, error };
+}
+
+export function useUserSchedule(email) {
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchSchedule = useCallback(async () => {
+    if (!email) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/for-you/schedule?email=${email}`);
+      const data = await response.json();
+      setSessions(data.sessions || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [email]);
+
+  useEffect(() => {
+    fetchSchedule();
+  }, [fetchSchedule]);
+
+  return { sessions, loading, error, refresh: fetchSchedule };
+}
+
+export function useScheduleMeeting() {
+  const [scheduling, setScheduling] = useState(false);
+  const [error, setError] = useState(null);
+
+  const schedule = async (payload) => {
+    setScheduling(true);
+    setError(null);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/for-you/schedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error("Failed to schedule meeting");
+      return await response.json();
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  return { schedule, scheduling, error };
 }

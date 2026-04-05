@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Award, Building2, Flag, Filter, Sparkles, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { useRecommendations } from "../hooks/useForYouDashboard";
+import { useAllScholarships } from "../hooks/useForYouDashboard";
 import { SCHOLARSHIPS as STATIC_SCHOLARSHIPS } from "../data/forYouPrograms";
 
 const FILTERS = [
@@ -15,7 +15,7 @@ const FILTERS = [
 
 export default function ScholarshipsPage() {
   const { user } = useAuth();
-  const { scholarships: backendScholarships, loading } = useRecommendations(
+  const { scholarships: backendScholarships, loading } = useAllScholarships(
     user?.sessionId,
     user?.email
   );
