@@ -28,9 +28,10 @@ export function invalidateAdminApiCache(opts = {}) {
   if (forYou) invalidateCachePrefix("for-you:");
 }
 
-// Backend API URL - change this based on your environment
-const API_BASE = "http://localhost:8000";
-// For production: const API_BASE = "https://your-backend.com";
+// Backend API URL from environment variables (required for Vercel deployment)
+// Development (.env.local): VITE_API_BASE_URL=http://localhost:8000
+// Production (.env.production): VITE_API_BASE_URL=https://your-backend.com
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 /** Short TTLs keep admin views fresh while deduping rapid navigation. */
 const TTL = {
@@ -457,6 +458,29 @@ export async function updateLead(leadId, updateData) {
 
   const data = await response.json();
   invalidateAdminApiCache({ leadId, overview: true, liveSessions: true, forYou: true });
+  return data.data;
+}
+
+/**
+ * Analyze call transcript for sentiment, intent, and emotional state
+ * @param {string} callSid - Twilio call SID
+ * @returns {Promise<object>} Analysis result with sentiment, intent, recommendations
+ */
+export async function analyzeCallTranscript(callSid) {
+  const response = await fetch(
+    `${API_BASE}/api/transcription/analyze-call/${encodeURIComponent(callSid)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || "Failed to analyze transcript");
+  }
+
+  const data = await response.json();
   return data.data;
 }
 

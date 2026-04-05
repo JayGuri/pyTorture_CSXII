@@ -16,6 +16,7 @@ from src.routes.leads import router as leads_router
 from src.routes.sessions import router as sessions_router
 from src.routes.health import router as health_router
 from src.routes.twilio_webhook import router as twilio_router
+from src.routes.transcription import router as transcription_router
 from src.services.tts.sarvam import router as tts_router
 from src.services.whatsapp import check_and_send_session_reminders
 
@@ -72,6 +73,7 @@ app.include_router(dashboard_router)
 app.include_router(for_you_router)
 app.include_router(leads_router)
 app.include_router(sessions_router)
+app.include_router(transcription_router)
 app.include_router(tts_router)
 
 

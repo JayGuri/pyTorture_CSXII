@@ -1,8 +1,28 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Radio, Users, ClipboardList, AlertTriangle } from "lucide-react";
 import { fetchDashboardOverview, fetchLeads, fetchLiveAndRingingSessions } from "../../lib/forYouApi.js";
 import { KB_GAP_QUEUE_SEED } from "../data/mockData.js";
+
+function formatDuration(sec) {
+  if (sec == null || Number.isNaN(Number(sec))) return "—";
+  const n = Number(sec);
+  const m = Math.floor(n / 60);
+  const s = n % 60;
+  return `${m}m ${s}s`;
+}
+
+function formatWhen(iso) {
+  if (!iso) return "—";
+  try {
+    return new Intl.DateTimeFormat("en-IN", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(iso));
+  } catch {
+    return String(iso);
+  }
+}
 
 function StatCard({ label, value, hint, to, linkLabel }) {
   return (
@@ -25,7 +45,7 @@ function StatCard({ label, value, hint, to, linkLabel }) {
 export default function AdminOverviewPage() {
   const [loadState, setLoadState] = useState("loading");
   const [connectionError, setConnectionError] = useState(null);
-  const [liveSessions, setLiveSessions] = useState([]);
+  const [calls, setCalls] = useState([]);
   const [overview, setOverview] = useState(null);
   const [totalLeads, setTotalLeads] = useState(0);
 
@@ -36,22 +56,41 @@ export default function AdminOverviewPage() {
     (async () => {
       setConnectionError(null);
       try {
-        const [ov, leadsRes, live] = await Promise.all([
+        const [ov, leadsRes] = await Promise.all([
           fetchDashboardOverview(),
-          fetchLeads(1, 1),
-          fetchLiveAndRingingSessions(),
+          fetchLeads(1, 100),
         ]);
         if (cancelled) return;
         setOverview(ov);
         setTotalLeads(leadsRes.pagination?.total ?? 0);
-        setLiveSessions(live || []);
+
+        // Extract and sort all calls
+        const allCalls = [];
+        (leadsRes.data || []).forEach((lead) => {
+          if (lead.calls && Array.isArray(lead.calls)) {
+            lead.calls.forEach((call) => {
+              allCalls.push({
+                callSid: call.call_sid,
+                studentName: lead.name,
+                startedAt: call.started_at,
+                duration: call.duration_seconds,
+                status: call.status,
+              });
+            });
+          }
+        });
+
+        // Sort by started_at descending and take top 3
+        allCalls.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+        setCalls(allCalls.slice(0, 3));
+
         setLoadState("ready");
       } catch (e) {
         if (!cancelled) {
           setConnectionError(e.message || "API unreachable");
           setOverview(null);
           setTotalLeads(0);
-          setLiveSessions([]);
+          setCalls([]);
           setLoadState("ready");
         }
       }
@@ -62,7 +101,7 @@ export default function AdminOverviewPage() {
   }, []);
 
   const hotCount = overview?.hot ?? 0;
-  const liveCount = liveSessions.length;
+  const liveCount = calls.length;
 
   return (
     <div className="space-y-10">
@@ -80,11 +119,11 @@ export default function AdminOverviewPage() {
 
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Live conversations"
+          label="Recent calls"
           value={loadState === "loading" ? "…" : liveCount}
-          hint="Students currently in a voice session."
+          hint="Top 3 most recent calls from leads."
           to="/admin/live"
-          linkLabel="Open live board"
+          linkLabel="View all calls"
         />
         <StatCard
           label="Hot leads (7d)"
@@ -113,26 +152,25 @@ export default function AdminOverviewPage() {
         <div className="rounded-xl border border-fateh-border/90 bg-white/90 p-6 lg:col-span-2">
           <div className="flex items-center gap-2">
             <Radio className="h-4 w-4 text-fateh-gold" aria-hidden />
-            <h2 className="font-fateh-serif text-lg font-semibold text-fateh-ink">Right now</h2>
+            <h2 className="font-fateh-serif text-lg font-semibold text-fateh-ink">Recent calls</h2>
           </div>
           {loadState === "loading" ? (
             <p className="mt-5 text-[0.88rem] text-fateh-muted">Loading…</p>
-          ) : liveSessions.length === 0 ? (
-            <p className="mt-5 text-[0.88rem] text-fateh-muted">No active or ringing sessions from the API.</p>
+          ) : calls.length === 0 ? (
+            <p className="mt-5 text-[0.88rem] text-fateh-muted">No calls yet.</p>
           ) : (
             <ul className="mt-5 divide-y divide-fateh-border/80">
-              {liveSessions.map((s) => (
-                <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0">
+              {calls.map((call) => (
+                <li key={call.callSid} className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0">
                   <div>
-                    <p className="font-medium text-fateh-ink">Session {s.id?.slice(0, 8)}…</p>
+                    <p className="font-medium text-fateh-ink">{call.callSid}</p>
                     <p className="mt-0.5 text-[0.8rem] text-fateh-muted">
-                      {s.caller_phone || "—"} · {s.status || "active"}
-                      {s.language_detected ? ` · ${s.language_detected}` : ""}
+                      {call.studentName || "—"} · {call.status || "completed"} · {formatWhen(call.startedAt)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-fateh-muted">Score</p>
-                    <p className="font-fateh-serif text-xl font-semibold text-fateh-muted">—</p>
+                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.1em] text-fateh-muted">Duration</p>
+                    <p className="font-fateh-serif text-xl font-semibold text-fateh-muted">{formatDuration(call.duration)}</p>
                   </div>
                 </li>
               ))}
@@ -142,7 +180,7 @@ export default function AdminOverviewPage() {
             to="/admin/live"
             className="mt-2 inline-flex items-center gap-1.5 text-[0.78rem] font-semibold text-fateh-gold hover:underline"
           >
-            Monitor all live threads <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            View all calls <ArrowRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
         </div>
 
