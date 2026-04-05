@@ -114,7 +114,7 @@ def _format_call_report(caller_doc: Dict[str, Any], call_record: Dict[str, Any] 
     # Counselling session
     next_session = caller_doc.get("next_con_session")
     con_status = caller_doc.get("con_session_req", "none")
-    if next_session and con_status in ("approved", "in_process"):
+    if next_session and str(next_session).lower() != "none" and con_status in ("approved", "in_process"):
         lines.append(f"\n📅 *Counselling Session:* {next_session}")
 
     lines.append("")
@@ -223,7 +223,7 @@ async def send_session_reminder(phone: str) -> bool:
 
         next_session = caller_doc.get("next_con_session")
         con_status = caller_doc.get("con_session_req", "none")
-        if not next_session or con_status not in ("approved", "in_process"):
+        if not next_session or str(next_session).lower() == "none" or con_status not in ("approved", "in_process"):
             logger.info(f"WhatsApp reminder skipped — no active session | phone={phone}")
             return False
 
