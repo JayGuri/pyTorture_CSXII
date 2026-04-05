@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from typing import Set
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config.env import env
@@ -19,9 +20,39 @@ from src.routes.twilio_webhook import router as twilio_router
 from src.routes.transcription import router as transcription_router
 from src.services.tts.sarvam import router as tts_router
 from src.services.whatsapp import check_and_send_session_reminders
+from src.utils.logger import logger
 
 
 SESSION_REMINDER_INTERVAL_SEC = 30 * 60  # Every 30 minutes
+
+# WebSocket connection manager for transcript streaming
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, Set[WebSocket]] = {}
+
+    async def connect(self, call_sid: str, websocket: WebSocket):
+        await websocket.accept()
+        if call_sid not in self.active_connections:
+            self.active_connections[call_sid] = set()
+        self.active_connections[call_sid].add(websocket)
+        logger.info(f"[WebSocket] Client connected to call {call_sid}")
+
+    def disconnect(self, call_sid: str, websocket: WebSocket):
+        if call_sid in self.active_connections:
+            self.active_connections[call_sid].discard(websocket)
+            if not self.active_connections[call_sid]:
+                del self.active_connections[call_sid]
+        logger.info(f"[WebSocket] Client disconnected from call {call_sid}")
+
+    async def broadcast(self, call_sid: str, message: dict):
+        if call_sid in self.active_connections:
+            for connection in self.active_connections[call_sid].copy():
+                try:
+                    await connection.send_json(message)
+                except Exception as e:
+                    logger.error(f"[WebSocket] Failed to send message: {e}")
+
+manager = ConnectionManager()
 
 
 async def _session_reminder_loop():
@@ -90,8 +121,31 @@ async def root():
             "/api/v1/for-you/dashboard",
             "/webhooks/twilio/voice",
             "/tts/{token}",
+            "/api/transcripts/{call_sid}",
         ],
     }
+
+
+@app.websocket("/api/transcripts/{call_sid}")
+async def websocket_transcript(websocket: WebSocket, call_sid: str):
+    """
+    WebSocket endpoint for live transcript streaming.
+    Clients connect with call_sid and receive real-time transcript messages.
+    """
+    await manager.connect(call_sid, websocket)
+    try:
+        # Send initial status message
+        await websocket.send_json({"type": "status", "message": "Connected to transcript stream"})
+
+        # Keep connection alive and receive messages from client
+        while True:
+            data = await websocket.receive_text()
+            logger.debug(f"[WebSocket] Received from {call_sid}: {data}")
+    except WebSocketDisconnect:
+        manager.disconnect(call_sid, websocket)
+    except Exception as e:
+        logger.error(f"[WebSocket] Error with {call_sid}: {e}")
+        manager.disconnect(call_sid, websocket)
 
 
 if __name__ == "__main__":
