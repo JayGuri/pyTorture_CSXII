@@ -11,6 +11,7 @@ import {
   validateNewPassword,
   validateSignupPhone,
 } from "../lib/formValidation.js";
+import { defaultSubscription, normalizeSubscription } from "../lib/subscriptionPlans.js";
 
 const SESSION_KEY = "fateh-session";
 const USERS_KEY = "fateh-users";
@@ -93,19 +94,26 @@ function writeCustomUsers(list) {
 function allUsers() {
   const custom = readCustomUsers();
   const merged = [];
-  const seenPhone = new Set();
+  const phoneToIndex = new Map();
 
-  const push = (u) => {
+  /** Later rows merge on top so local overrides (e.g. subscription after upgrade) persist for seed phones. */
+  const upsert = (u) => {
     if (!u) return;
     const ph = normalizePhone(u.phone);
-    if (!ph || seenPhone.has(ph)) return;
-    seenPhone.add(ph);
-    merged.push({ ...u, phone: ph });
+    if (!ph) return;
+    const row = { ...u, phone: ph };
+    if (phoneToIndex.has(ph)) {
+      const i = phoneToIndex.get(ph);
+      merged[i] = { ...merged[i], ...row };
+    } else {
+      phoneToIndex.set(ph, merged.length);
+      merged.push(row);
+    }
   };
 
-  push(ADMIN_SEED_USER);
-  for (const u of SEED_USERS) push(u);
-  for (const u of custom) push(u);
+  upsert(ADMIN_SEED_USER);
+  for (const u of SEED_USERS) upsert(u);
+  for (const u of custom) upsert(u);
   return merged;
 }
 
@@ -157,8 +165,10 @@ function writeSession(phone) {
 function resolveSessionUser() {
   const phone = readSessionPhone();
   if (!phone) return null;
-  const user = allUsers().find((u) => normalizePhone(u.phone) === phone);
-  return stripUser(user);
+  const row = allUsers().find((u) => normalizePhone(u.phone) === phone);
+  const safe = stripUser(row);
+  if (!safe) return null;
+  return { ...safe, subscription: normalizeSubscription(row) };
 }
 
 const AuthContext = createContext(null);
@@ -177,8 +187,9 @@ export function AuthProvider({ children }) {
     if (!safe.sessionId) {
       safe.sessionId = `session-${crypto.randomUUID()}`;
     }
-    setUser(safe);
-    return { ok: true, user: safe };
+    const withSub = { ...safe, subscription: normalizeSubscription(found) };
+    setUser(withSub);
+    return { ok: true, user: withSub };
   }, []);
 
   const signup = useCallback((name, phone, password) => {
@@ -202,6 +213,7 @@ export function AuthProvider({ children }) {
       password,
       name: nameRes.value,
       preliminaryCallDone: false,
+      subscription: defaultSubscription(),
       profile: {
         country: null,
         studyLevel: null,
@@ -216,13 +228,9 @@ export function AuthProvider({ children }) {
     writeCustomUsers([...custom, record]);
     writeSession(record.phone);
     const safe = stripUser(record);
-    setUser(safe);
-    return { ok: true, user: safe };
-  }, []);
-
-  const logout = useCallback(() => {
-    writeSession(null);
-    setUser(null);
+    const withSub = { ...safe, subscription: normalizeSubscription(record) };
+    setUser(withSub);
+    return { ok: true, user: withSub };
   }, []);
 
   const matchStoredUser = useCallback(
@@ -230,10 +238,46 @@ export function AuthProvider({ children }) {
     [user?.phone],
   );
 
+  const setSubscription = useCallback(
+    (partial) => {
+      if (!user) return { ok: false, error: "No user logged in" };
+      if (user.role === "admin") {
+        return { ok: false, error: "Plans apply to student accounts only." };
+      }
+      const next = { ...normalizeSubscription(user), ...partial };
+      const updated = { ...user, subscription: next };
+      const custom = readCustomUsers();
+      const seedUser = SEED_USERS.find(matchStoredUser);
+      const ph = normalizePhone(user.phone);
+      const idx = custom.findIndex((u) => normalizePhone(u.phone) === ph);
+      if (seedUser) {
+        const base =
+          idx >= 0 ? { ...seedUser, ...custom[idx] } : { ...seedUser };
+        const stored = { ...base, subscription: next };
+        if (idx >= 0) custom[idx] = stored;
+        else custom.push(stored);
+        writeCustomUsers(custom);
+        setUser({ ...stripUser(stored), subscription: normalizeSubscription(stored) });
+      } else {
+        if (idx >= 0) {
+          custom[idx] = { ...custom[idx], subscription: next };
+          writeCustomUsers(custom);
+        }
+        setUser(updated);
+      }
+      return { ok: true };
+    },
+    [user, matchStoredUser],
+  );
+
   const updateUserProfile = useCallback(
     (profileData) => {
       if (!user) return { ok: false, error: "No user logged in" };
-      const updated = { ...user, profile: { ...user.profile, ...profileData } };
+      const updated = {
+        ...user,
+        profile: { ...user.profile, ...profileData },
+        subscription: normalizeSubscription(user),
+      };
       const custom = readCustomUsers();
       const seedUser = SEED_USERS.find(matchStoredUser);
       if (seedUser) {
@@ -241,7 +285,11 @@ export function AuthProvider({ children }) {
       } else {
         const idx = custom.findIndex(matchStoredUser);
         if (idx >= 0) {
-          custom[idx] = { ...custom[idx], profile: updated.profile };
+          custom[idx] = {
+            ...custom[idx],
+            profile: updated.profile,
+            subscription: updated.subscription,
+          };
           writeCustomUsers(custom);
         }
         setUser(updated);
@@ -259,6 +307,7 @@ export function AuthProvider({ children }) {
         preliminaryCallDone: true,
         profile: { ...user.profile, ...callData },
         lastCallDate: new Date().toISOString(),
+        subscription: normalizeSubscription(user),
       };
       const custom = readCustomUsers();
       const seedUser = SEED_USERS.find(matchStoredUser);
@@ -282,6 +331,11 @@ export function AuthProvider({ children }) {
     [user, matchStoredUser],
   );
 
+  const logout = useCallback(() => {
+    writeSession(null);
+    setUser(null);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -291,8 +345,9 @@ export function AuthProvider({ children }) {
       logout,
       updateUserProfile,
       markCallAsDone,
+      setSubscription,
     }),
-    [user, login, signup, logout, updateUserProfile, markCallAsDone],
+    [user, login, signup, logout, updateUserProfile, markCallAsDone, setSubscription],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

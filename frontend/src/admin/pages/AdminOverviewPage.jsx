@@ -69,9 +69,7 @@ export default function AdminOverviewPage() {
       <div>
         <h1 className="font-fateh-serif text-3xl font-semibold text-fateh-ink md:text-[2.15rem]">Overview</h1>
         <p className="mt-2 max-w-2xl text-[0.95rem] leading-relaxed text-fateh-muted">
-          Stats below use the backend when it responds: <code className="text-fateh-ink/80">/api/dashboard/overview</code>,{" "}
-          <code className="text-fateh-ink/80">/api/leads</code>, and active sessions. KB gap queue counts are still local seed
-          data until that endpoint exists.
+          Snapshot of today&apos;s pipeline: who is on a call, how leads are trending, and what needs your review.
         </p>
         {connectionError ? (
           <p className="mt-2 text-[0.82rem] text-amber-900">
@@ -84,28 +82,28 @@ export default function AdminOverviewPage() {
         <StatCard
           label="Live conversations"
           value={loadState === "loading" ? "…" : liveCount}
-          hint="Ringing + active from dashboard active-sessions."
+          hint="Students currently in a voice session."
           to="/admin/live"
           linkLabel="Open live board"
         />
         <StatCard
           label="Hot leads (7d)"
           value={loadState === "loading" ? "…" : hotCount}
-          hint="From dashboard overview (class Hot, created in last 7 days)."
+          hint="Strong interest in the last week — prioritise follow-up."
           to="/admin/leads"
           linkLabel="Lead matrix"
         />
         <StatCard
           label="KB gaps pending"
           value={pendingGaps}
-          hint="Local seed only — wire to your KB gap API when ready."
+          hint="Questions flagged for your knowledge base review."
           to="/admin/kb/gaps"
           linkLabel="Review queue"
         />
         <StatCard
           label="Leads (total)"
           value={loadState === "loading" ? "…" : totalLeads}
-          hint="All lead rows from GET /api/leads pagination total."
+          hint="Everyone in your CRM who has come through the system."
           to="/admin/briefs"
           linkLabel="Open briefs"
         />
@@ -155,8 +153,8 @@ export default function AdminOverviewPage() {
               <h2 className="font-fateh-serif text-lg font-semibold text-fateh-ink">Counsellor handoff</h2>
             </div>
             <p className="mt-3 text-[0.88rem] leading-relaxed text-fateh-muted">
-              Briefs are built only from Supabase-backed leads and sessions. Open a lead to see merged voice snapshot + CRM
-              fields.
+              Open a student&apos;s brief to see what was discussed on the call, scores, and suggested next steps — so you can
+              pick up the conversation without listening to the full recording first.
             </p>
             <Link
               to="/admin/briefs"
@@ -173,16 +171,16 @@ export default function AdminOverviewPage() {
             </div>
             {overview && !connectionError ? (
               <p className="mt-3 text-[0.88rem] leading-relaxed text-amber-950/80">
-                Today&apos;s calls logged:{" "}
-                <span className="font-semibold text-amber-950">{overview.todayCalls ?? 0}</span>. Leads in last 7 days —
-                Hot <span className="font-semibold">{overview.hot}</span>, Warm{" "}
+                Calls logged today:{" "}
+                <span className="font-semibold text-amber-950">{overview.todayCalls ?? 0}</span>. New leads this week — Hot{" "}
+                <span className="font-semibold">{overview.hot}</span>, Warm{" "}
                 <span className="font-semibold">{overview.warm}</span>, Cold{" "}
-                <span className="font-semibold">{overview.cold}</span>. Hot share{" "}
+                <span className="font-semibold">{overview.cold}</span>. Rough share of Hot leads in that group:{" "}
                 <span className="font-semibold">{overview.conversionRate ?? 0}%</span>.
               </p>
             ) : (
               <p className="mt-3 text-[0.88rem] leading-relaxed text-amber-950/80">
-                Connect the API to see call and classification counts from <code className="text-amber-950">/overview</code>.
+                Connect the backend to see call volumes and how leads are split across Hot, Warm, and Cold.
               </p>
             )}
             <Link to="/admin/analytics" className="mt-4 inline-flex text-[0.78rem] font-semibold text-amber-950/90 hover:underline">

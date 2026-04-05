@@ -91,7 +91,7 @@ export default function AdminLayout() {
             <p className="mt-1 text-[0.72rem] leading-relaxed text-white/50">AI voice agent — counsellor ops</p>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <nav className="flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {NAV.map((section) => (
               <div key={section.label} className="mb-6">
                 <p className="mb-2 px-3 text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-white/35">{section.label}</p>

@@ -9,6 +9,7 @@ const Universities = lazy(() => import("../components/Universities"));
 const Services = lazy(() => import("../components/Services"));
 const Leadership = lazy(() => import("../components/Leadership"));
 const Testimonials = lazy(() => import("../components/Testimonials"));
+const SubscriptionSection = lazy(() => import("../components/SubscriptionSection"));
 const Register = lazy(() => import("../components/Register"));
 const Footer = lazy(() => import("../components/Footer"));
 
@@ -50,6 +51,7 @@ export default function HomePage() {
           </div>
           <Leadership />
           <Testimonials />
+          <SubscriptionSection />
           <Register />
         </Suspense>
       </main>

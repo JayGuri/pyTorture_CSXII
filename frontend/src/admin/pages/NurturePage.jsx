@@ -19,22 +19,23 @@ export default function NurturePage() {
       <div>
         <h1 className="font-fateh-serif text-3xl font-semibold text-fateh-ink md:text-[2.15rem]">Nurture tracking</h1>
         <p className="mt-2 max-w-3xl text-[0.95rem] leading-relaxed text-fateh-muted">
-          Cold leads and incomplete sessions with automated WhatsApp follow-ups and drip stages. Hook this table to your messaging provider webhooks
-          when ready.
+          Students who need a light touch between calls: what stage they&apos;re in, when you last reached out, and a concrete
+          suggestion for the next move. Hook this list to WhatsApp or email when your messaging tools are ready.
         </p>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-fateh-border/90 bg-white/95 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-[820px] w-full border-collapse text-left text-[0.88rem]">
+          <table className="min-w-[960px] w-full border-collapse text-left text-[0.88rem]">
             <thead>
               <tr className="border-b border-fateh-border bg-fateh-paper/80 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fateh-muted">
                 <th className="px-5 py-4">Student</th>
                 <th className="px-5 py-4">Tier</th>
                 <th className="px-5 py-4">Stage</th>
                 <th className="px-5 py-4">Last sent</th>
-                <th className="px-5 py-4">Next scheduled</th>
-                <th className="px-5 py-4">Incomplete session</th>
+                <th className="px-5 py-4">Next touch</th>
+                <th className="px-5 py-4">Dropped call?</th>
+                <th className="px-5 py-4 min-w-[220px]">Suggested next step</th>
               </tr>
             </thead>
             <tbody>
@@ -55,6 +56,9 @@ export default function NurturePage() {
                     ) : (
                       <span className="text-fateh-muted">—</span>
                     )}
+                  </td>
+                  <td className="px-5 py-4 text-[0.82rem] leading-snug text-fateh-muted">
+                    {n.suggestedNext || "—"}
                   </td>
                 </tr>
               ))}

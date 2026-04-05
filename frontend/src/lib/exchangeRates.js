@@ -9,6 +9,50 @@
  */
 const FRANKFURT_BASE = "https://api.frankfurter.dev/v1";
 
+export const FX_LOCALSTORAGE_KEY = "fateh.eurGbpInr.v1";
+
+/** Fired on `window` after rates are saved (same tab + admin refresh). */
+export const FX_UPDATED_EVENT = "fateh-fx-rates-updated";
+
+/**
+ * Last successful EUR/GBP → INR snapshot (shared across admin + For You).
+ * @returns {{ eurInr: number, gbpInr: number, date: string|null, source?: string }|null}
+ */
+export function readStoredFxSnapshot() {
+  try {
+    const raw = localStorage.getItem(FX_LOCALSTORAGE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (typeof o.eurInr !== "number" || typeof o.gbpInr !== "number") return null;
+    if (!Number.isFinite(o.eurInr) || !Number.isFinite(o.gbpInr)) return null;
+    return {
+      eurInr: o.eurInr,
+      gbpInr: o.gbpInr,
+      date: o.date ?? null,
+      source: o.source ?? "cached",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistFxSnapshot(data) {
+  try {
+    const payload = {
+      eurInr: data.eurInr,
+      gbpInr: data.gbpInr,
+      date: data.date ?? null,
+      source: data.source ?? "frankfurter",
+    };
+    localStorage.setItem(FX_LOCALSTORAGE_KEY, JSON.stringify(payload));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(FX_UPDATED_EVENT, { detail: payload }));
+    }
+  } catch (e) {
+    console.warn("[exchangeRates] persist failed:", e);
+  }
+}
+
 function parseFrankfurterBody(data) {
   const rate = data?.rates?.INR;
   if (typeof rate !== "number" || !Number.isFinite(rate)) {
@@ -70,12 +114,14 @@ export async function fetchEurGbpInrSpot(signal) {
     }
 
     const date = eurData.date || gbpData.date || null;
-    return {
+    const out = {
       eurInr,
       gbpInr,
       date,
       source: "frankfurter",
     };
+    persistFxSnapshot(out);
+    return out;
   } catch (e) {
     console.error("[exchangeRates] fetchEurGbpInrSpot failed:", e);
     throw e;
