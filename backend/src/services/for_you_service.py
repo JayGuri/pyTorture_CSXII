@@ -93,7 +93,9 @@ class ForYouService:
 
         course_interest = (lead_profile.get("course_interest") or "").lower()
         gpa = lead_profile.get("gpa")
-        ielts_score = lead_profile.get("ielts_score")
+        # MongoDB uses test_score (with test_type: IELTS/PTE/TOEFL)
+        test_score = lead_profile.get("test_score")
+        test_type = lead_profile.get("test_type")
 
         for uni in universities:
             # Filter by country
@@ -114,14 +116,14 @@ class ForYouService:
                 if not subject_strengths:
                     continue
 
-            # Filter by IELTS requirement if score provided
-            if ielts_score is not None:
+            # Filter by English test requirement if score provided
+            if test_score is not None:
                 courses = uni.get("courses", [])
                 required_ielts = max(
                     [float(c.get("ielts_min", 6.0)) for c in courses if c.get("ielts_min")],
                     default=6.0,
                 )
-                if ielts_score < required_ielts - 0.5:  # Allow 0.5 buffer
+                if test_score < required_ielts - 0.5:  # Allow 0.5 buffer
                     continue
 
             filtered.append(uni)
@@ -309,21 +311,20 @@ class ForYouService:
             "opportunities": [],
         }
 
-        # Application readiness assessment
-        application_stage = (lead_profile.get("application_stage") or "").lower()
-        ielts_score = lead_profile.get("ielts_score")
-        pte_score = lead_profile.get("pte_score")
+        # Application readiness assessment (MongoDB schema)
+        con_session_req = (lead_profile.get("con_session_req") or "").lower()
+        test_score = lead_profile.get("test_score")
         gpa = lead_profile.get("gpa")
 
-        if application_stage in ["admitted", "accepted"]:
+        if con_session_req in ["approved", "in_process"]:
             insights["application_readiness"] = "ready"
-        elif application_stage in ["submitted", "shortlisted"]:
+        elif con_session_req in ["pending", "denied"]:
             insights["application_readiness"] = "in_progress"
-        elif gpa and gpa >= 6.5 and (ielts_score or pte_score):
+        elif gpa and gpa >= 6.5 and test_score:
             insights["application_readiness"] = "almost_ready"
 
         # Key actions based on profile
-        if not ielts_score and not pte_score:
+        if not test_score:
             insights["key_actions"].append("Schedule IELTS/PTE exam")
             insights["warnings"].append("English proficiency test required for visa")
 
@@ -333,11 +334,10 @@ class ForYouService:
         if lead_profile.get("scholarship_interest") and not gpa:
             insights["warnings"].append("Most scholarships require minimum GPA 65%")
 
-        # Timeline insights
-        timeline = (lead_profile.get("timeline") or "").lower()
+        # Timeline insights (MongoDB: intake_timing)
         intake_timing = (lead_profile.get("intake_timing") or "").lower()
 
-        if "urgent" in timeline:
+        if "urgent" in intake_timing or "asap" in intake_timing:
             insights["opportunities"].append("Fast-track scholarships available")
             insights["key_actions"].append("Apply within 2 weeks for best results")
         else:
@@ -489,7 +489,7 @@ class ForYouService:
                 {
                     "title": "Prepare for Exams",
                     "description": "IELTS/PTE required for visa and most universities",
-                    "priority": "high" if not lead_profile.get("ielts_score") else "low",
+                    "priority": "high" if not lead_profile.get("test_score") else "low",
                 },
                 {
                     "title": "Research Scholarships",

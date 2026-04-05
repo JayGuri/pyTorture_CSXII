@@ -44,10 +44,24 @@ class DataResponse(BaseResponse, Generic[T]):
         }
 
 
+class PaginationInfo(BaseModel):
+    """Pagination metadata."""
+
+    total: int
+    page: int
+    limit: int
+    pages: Optional[int] = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self.total > 0:
+            self.pages = (self.total + self.limit - 1) // self.limit
+
+
 class PaginatedResponse(DataResponse[List[T]], Generic[T]):
     """Response model for paginated data endpoints."""
 
-    pagination: Optional[dict] = None
+    pagination: Optional[PaginationInfo] = None
 
     class Config:
         json_schema_extra = {
@@ -122,17 +136,3 @@ class FunnelResponse(BaseModel):
                 "hot": 120,
             }
         }
-
-
-class PaginationInfo(BaseModel):
-    """Pagination metadata."""
-
-    total: int
-    page: int
-    limit: int
-    pages: Optional[int] = None
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        if self.total > 0:
-            self.pages = (self.total + self.limit - 1) // self.limit
