@@ -15,7 +15,7 @@ from src.utils.logger import logger
 router = APIRouter()
 
 _VALID_SARVAM_MODELS = {"bulbul:v2", "bulbul:v3-beta", "bulbul:v3"}
-_FALLBACK_SPEAKER = "priya"
+_FALLBACK_SPEAKER = "anushka"
 _DEFAULT_SPEAKER = (env.SARVAM_TTS_DEFAULT_SPEAKER or _FALLBACK_SPEAKER).strip() or _FALLBACK_SPEAKER
 SARVAM_VOICES = {
     "en-IN": _DEFAULT_SPEAKER,
@@ -74,7 +74,7 @@ def _is_invalid_speaker_response(response: httpx.Response) -> bool:
     if response.status_code != 400:
         return False
     body = _safe_error_body(response, limit=1200).lower()
-    return "speaker" in body and "not recognized" in body
+    return "speaker" in body and ("not recognized" in body or "not compatible" in body)
 
 
 async def _post_tts_request(client: httpx.AsyncClient, text: str, language_code: str, speaker: str, api_key: str) -> httpx.Response:
@@ -111,9 +111,9 @@ async def synthesize_speech(
     if not candidate_keys:
         raise RuntimeError("No Sarvam API keys configured")
 
-    per_request_timeout = min(env.SARVAM_TTS_TIMEOUT_SEC, 5.0)
+    per_request_timeout = min(env.SARVAM_TTS_TIMEOUT_SEC, 8.0)
     if request_timeout_sec is not None:
-        per_request_timeout = max(0.2, min(per_request_timeout, float(request_timeout_sec)))
+        per_request_timeout = max(0.5, min(per_request_timeout, float(request_timeout_sec)))
 
     t0 = time.monotonic()
     last_exc: Exception | None = None
@@ -121,7 +121,10 @@ async def synthesize_speech(
     for key_index, api_key in enumerate(candidate_keys):
         key_label = "primary" if key_index == 0 else "fallback"
         try:
-            async with httpx.AsyncClient(timeout=per_request_timeout) as client:
+            _connect_timeout = min(3.0, per_request_timeout * 0.35)
+            _read_timeout = per_request_timeout
+            _timeout = httpx.Timeout(connect=_connect_timeout, read=_read_timeout, write=5.0, pool=5.0)
+            async with httpx.AsyncClient(timeout=_timeout) as client:
                 response = await _post_tts_request(client, safe_text, language_code, voice, api_key)
                 response.raise_for_status()
 
@@ -141,7 +144,8 @@ async def synthesize_speech(
                     f"key={key_label} configured_speaker={voice} fallback_speaker={_FALLBACK_SPEAKER}"
                 )
                 try:
-                    async with httpx.AsyncClient(timeout=per_request_timeout) as client2:
+                    _fb_timeout = httpx.Timeout(connect=_connect_timeout, read=_read_timeout, write=5.0, pool=5.0)
+                    async with httpx.AsyncClient(timeout=_fb_timeout) as client2:
                         retry_response = await _post_tts_request(client2, safe_text, language_code, _FALLBACK_SPEAKER, api_key)
                         retry_response.raise_for_status()
                         payload = retry_response.json()
@@ -161,6 +165,25 @@ async def synthesize_speech(
                     f"Sarvam TTS failed with key={key_label} | "
                     f"status={exc.response.status_code} body={_safe_error_body(exc.response)}"
                 )
+        except httpx.ReadTimeout as exc:
+            # Single fast retry on read timeout before moving to next key
+            logger.warning(f"Sarvam TTS ReadTimeout with key={key_label}, retrying once | err={repr(exc)}")
+            try:
+                _retry_timeout = httpx.Timeout(connect=2.0, read=per_request_timeout + 2.0, write=5.0, pool=5.0)
+                async with httpx.AsyncClient(timeout=_retry_timeout) as retry_client:
+                    response = await _post_tts_request(retry_client, safe_text, language_code, voice, api_key)
+                    response.raise_for_status()
+                    payload = response.json()
+                    elapsed = time.monotonic() - t0
+                    encoded_audio = (payload.get("audios") or [""])[0]
+                    if not encoded_audio:
+                        raise ValueError("Sarvam TTS returned empty audio on retry")
+                    audio_bytes = base64.b64decode(encoded_audio)
+                    logger.info(f"Sarvam TTS OK (retry after ReadTimeout) | key={key_label} elapsed={elapsed:.2f}s size={len(audio_bytes)}B")
+                    return audio_bytes
+            except Exception as retry_exc:
+                last_exc = retry_exc
+                logger.warning(f"Sarvam TTS retry also failed with key={key_label} | err={repr(retry_exc)}")
         except Exception as exc:
             last_exc = exc
             logger.warning(f"Sarvam TTS failed with key={key_label} | err={repr(exc)}")

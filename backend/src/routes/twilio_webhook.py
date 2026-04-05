@@ -15,6 +15,7 @@ from src.models.types import ACTIVE_CALLS, Language, get_or_create_state, remove
 from src.services.stt.groq_whisper import download_twilio_recording, transcribe_audio
 from src.services.tts.sarvam import cache_tts_audio, synthesize_speech
 from src.services.voice_agent.orchestrator import process_turn
+from src.services.whatsapp import send_call_report, send_session_reminder
 from src.utils.helpers import normalize_phone, utc_now_iso
 from src.utils.logger import logger
 
@@ -539,7 +540,25 @@ async def _finalize_status_callback(form) -> None:
                 "turns": state.turns if state else 0,
             },
         )
+
+        # Fire-and-forget: send WhatsApp call summary + session reminder
+        if mapped_status == "completed" and (state is None or state.turns >= 1):
+            asyncio.create_task(_send_whatsapp_post_call(effective_phone, call_sid))
+
     remove_state(call_sid)
+
+
+async def _send_whatsapp_post_call(phone: str, call_sid: str) -> None:
+    """Background task: send call report + session reminder via WhatsApp."""
+    try:
+        await send_call_report(phone, call_sid)
+    except Exception as exc:
+        logger.error(f"WhatsApp post-call report failed | phone={phone} call_sid={call_sid} err={repr(exc)}")
+
+    try:
+        await send_session_reminder(phone)
+    except Exception as exc:
+        logger.error(f"WhatsApp session reminder failed | phone={phone} err={repr(exc)}")
 
 
 @router.post("/status")

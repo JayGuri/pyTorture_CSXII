@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     TWILIO_ACCOUNT_SID: str = Field(default="")
     TWILIO_AUTH_TOKEN: str = Field(default="")
     TWILIO_PHONE_NUMBER: str = Field(default="")
+    TWILIO_WHATSAPP_NUMBER: str = Field(default="")
 
     GROQ_STT_API_KEY: str = Field(default="")
     GROQ_API_KEY: str = Field(default="")
@@ -58,7 +59,7 @@ class Settings(BaseSettings):
     SARVAM_API_KEY_FALLBACK: str = Field(default="")
     SARVAM_TTS_URL: str = Field(default="https://api.sarvam.ai/text-to-speech")
     SARVAM_TTS_MODEL: str = Field(default="bulbul:v2")
-    SARVAM_TTS_DEFAULT_SPEAKER: str = Field(default="priya")
+    SARVAM_TTS_DEFAULT_SPEAKER: str = Field(default="anushka")
     SARVAM_TTS_MAX_CHARS: int = Field(default=500)
 
     MONGODB_URI: str = Field(default="")
