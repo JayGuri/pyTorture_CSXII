@@ -3,6 +3,8 @@
  * Offline: short, helpful templated replies (not context-aware; no follow-up nudges in UI).
  */
 
+import { API_BASE_URL } from "../config/api.js";
+
 function offlineReply(text) {
   const t = text.toLowerCase();
   if (/visa|passport|stamp|embassy/.test(t)) {
@@ -21,9 +23,8 @@ function offlineReply(text) {
 }
 
 export async function askFatehAgent(userMessage, { signal, history = [] } = {}) {
-  // Use backend if environment is set, otherwise default to relative path for current host
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
-  const endpoint = `${baseUrl}/api/v1/for-you/ask-fateh`;
+  // Backend API endpoint from config
+  const endpoint = `${API_BASE_URL}/api/v1/for-you/ask-fateh`;
   
   const trimmed = String(userMessage || "").trim();
   if (!trimmed) return "";

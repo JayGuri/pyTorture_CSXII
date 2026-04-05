@@ -6,6 +6,7 @@
  */
 
 import { withCache, deleteCacheKey, invalidateCachePrefix } from "./apiCache.js";
+import { API_BASE_URL } from "../config/api.js";
 
 /**
  * Drop cached admin/leads data after mutations or when forcing a refresh.
@@ -28,10 +29,8 @@ export function invalidateAdminApiCache(opts = {}) {
   if (forYou) invalidateCachePrefix("for-you:");
 }
 
-// Backend API URL from environment variables (required for Vercel deployment)
-// Development (.env.local): VITE_API_BASE_URL=http://localhost:8000
-// Production (.env.production): VITE_API_BASE_URL=https://your-backend.com
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+// Backend API URL (from config)
+const API_BASE = API_BASE_URL;
 
 /** Short TTLs keep admin views fresh while deduping rapid navigation. */
 const TTL = {

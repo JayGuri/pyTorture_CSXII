@@ -8,6 +8,8 @@
  *   socket.connect();
  */
 
+import { getWebSocketUrl } from "../config/api.js";
+
 class TranscriptSocket {
   constructor(callSid, onMessage) {
     this.callSid = callSid;
@@ -21,21 +23,8 @@ class TranscriptSocket {
 
   connect() {
     try {
-      // Determine WebSocket URL from environment or current location
-      let wsUrl;
-      const apiBase = import.meta.env.VITE_API_BASE_URL;
-
-      if (apiBase) {
-        // Use environment variable - convert http/https to ws/wss
-        const protocol = apiBase.startsWith("https") ? "wss:" : "ws:";
-        const host = apiBase.replace(/^https?:\/\//, "");
-        wsUrl = `${protocol}//${host}/api/transcripts/${this.callSid}`;
-      } else {
-        // Fallback: use current window location
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const host = window.location.host;
-        wsUrl = `${protocol}//${host}/api/transcripts/${this.callSid}`;
-      }
+      // WebSocket URL from config
+      const wsUrl = getWebSocketUrl(this.callSid);
 
       this.ws = new WebSocket(wsUrl);
 
