@@ -40,15 +40,16 @@ export default function AdminTriggersPage() {
       <div>
         <h1 className="font-fateh-serif text-3xl font-semibold text-fateh-ink md:text-[2.15rem]">Manual triggers</h1>
         <p className="mt-2 max-w-3xl text-[0.95rem] leading-relaxed text-fateh-muted">
-          Force-refresh operational caches your voice agent and counsellors rely on. Exchange rates call the live Frankfurter API; visa and full KB
-          actions are stubbed until your workers are connected.
+          Run quick maintenance tasks. Refreshing exchange rates pulls live EUR/GBP→INR figures, saves them for everyone (including the
+          student &quot;For you&quot; cost tools), and shows the latest values here. Visa and full knowledge-base jobs are placeholders until
+          your workers are connected.
         </p>
       </div>
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         <TriggerCard
           title="Refresh exchange rates"
-          description="Pulls live EUR/INR and GBP/INR spot from Frankfurter (same source as the public calculator)."
+          description="Pulls live EUR/INR and GBP/INR from the same public source as the student site. Updates this console and the For you hub."
           actionLabel={fxStatus === "loading" ? "Refreshing…" : "Refresh exchange rates now"}
           onClick={refreshFx}
           disabled={fxStatus === "loading"}

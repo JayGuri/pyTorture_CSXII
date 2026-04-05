@@ -179,8 +179,7 @@ export default function LiveConversationsPage() {
         <h1 className="font-fateh-serif text-3xl font-semibold text-fateh-ink md:text-[2.15rem]">
           Live conversations
         </h1>
-        <p className="mt-2 max-w-3xl text-[0.95rem] leading-relaxed text-fateh-muted">{subtitle}</p>
-        {error ? <p className="mt-2 text-[0.82rem] text-amber-900">API error: {error}</p> : null}
+        {error ? <p className="mt-2 text-[0.82rem] text-amber-900">Could not load sessions: {error}</p> : null}
       </div>
 
       <div className="flex flex-wrap gap-4 items-center justify-between">

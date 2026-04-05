@@ -136,10 +136,7 @@ export default function LeadsMatrixPage() {
           Lead routing matrix
         </h1>
         <p className="mt-2 max-w-3xl text-[0.95rem] leading-relaxed text-fateh-muted">
-          All tiles come from the API: completed leads from{" "}
-          <code className="text-fateh-ink/80">GET /api/leads</code>, live rows from{" "}
-          <code className="text-fateh-ink/80">GET /api/dashboard/active-sessions</code> (ringing + active).
-          Empty responses show empty columns — no demo data.
+          Leads grouped by priority (Hot, Warm, Cold). Anyone on a live call appears under the tier that best matches their signals.
         </p>
         {backendUnreachable ? (
           <p className="mt-2 text-[0.82rem] text-amber-900">

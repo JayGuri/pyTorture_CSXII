@@ -46,7 +46,12 @@ import {
   INR_BUFFER,
 } from "../data/forYouPrograms";
 import { FOR_YOU_MENU_ITEMS } from "../data/forYouNavItems";
-import { fetchEurGbpInrSpot } from "../lib/exchangeRates";
+import {
+  fetchEurGbpInrSpot,
+  readStoredFxSnapshot,
+  FX_UPDATED_EVENT,
+  FX_LOCALSTORAGE_KEY,
+} from "../lib/exchangeRates";
 import { googleCalendarUrl } from "../lib/googleCalendar";
 import {
   getTopUniversities,
@@ -55,6 +60,12 @@ import {
   buildForYouDashboard,
 } from "../lib/knowledgeBase";
 import { apiContactEmail } from "../lib/userContact.js";
+import {
+  counsellingSessionsRemaining,
+  normalizeSubscription,
+  sopReviewsRemaining,
+  tierEntitlements,
+} from "../lib/subscriptionPlans.js";
 
 const container = {
   hidden: { opacity: 0 },
@@ -104,13 +115,16 @@ export default function ForYouPage() {
   const [passportFile, setPassportFile] = useState(null);
   const [passportError, setPassportError] = useState(null);
   const [passportDrag, setPassportDrag] = useState(false);
-  const [spot, setSpot] = useState({
-    loading: false,
-    error: null,
-    eurInr: null,
-    gbpInr: null,
-    date: null,
-    source: null,
+  const [spot, setSpot] = useState(() => {
+    const c = readStoredFxSnapshot();
+    return {
+      loading: false,
+      error: null,
+      eurInr: c?.eurInr ?? null,
+      gbpInr: c?.gbpInr ?? null,
+      date: c?.date ?? null,
+      source: c ? c.source ?? "cached" : null,
+    };
   });
   const [bottomReached, setBottomReached] = useState(false);
   const [scenariosOpen, setScenariosOpen] = useState(false);
@@ -148,6 +162,59 @@ export default function ForYouPage() {
       })
       .slice(0, 6);
   }, [recommendations?.universities]);
+
+  const overviewChips = useMemo(() => {
+    const chips = [
+      {
+        k: "Matches",
+        v: String(recommendations?.universities?.length || PROGRAMS.length),
+      },
+    ];
+    if (user && user.role !== "admin") {
+      const ent = tierEntitlements(normalizeSubscription(user).tier);
+      const cRem = counsellingSessionsRemaining(user);
+      chips.push(
+        { k: "Plan", v: ent.label },
+        {
+          k: "Counselling",
+          v: cRem === Infinity ? "Unlimited" : `${cRem} left`,
+        },
+      );
+    }
+    chips.push(
+      { k: "Shortlist", v: "3" },
+      {
+        k: "Profile",
+        v:
+          leadProfile?.data_completeness > 80 ? "Complete"
+          : leadProfile?.data_completeness > 40 ? "Building"
+          : "Starting",
+      },
+    );
+    return chips;
+  }, [
+    user,
+    recommendations?.universities?.length,
+    leadProfile?.data_completeness,
+  ]);
+
+  const hubPlan = useMemo(() => {
+    if (!user || user.role === "admin") return null;
+    const ent = tierEntitlements(normalizeSubscription(user).tier);
+    const cRem = counsellingSessionsRemaining(user);
+    const sRem = sopReviewsRemaining(user);
+    return {
+      name: ent.label,
+      sessions:
+        cRem === Infinity ? "Unlimited sessions" : `${cRem} session(s) left`,
+      sop:
+        sRem === Infinity
+          ? "Unlimited SOP reviews"
+          : sRem > 0
+            ? `${sRem} SOP review(s) left`
+            : "SOP on Guided+",
+    };
+  }, [user]);
 
   const selected = useMemo(
     () =>
@@ -258,14 +325,15 @@ export default function ForYouPage() {
         if (e.name === "AbortError") return;
         const errorMsg = e?.message || "Could not load exchange rates.";
         console.error("[ForYouPage] FX fetch error:", errorMsg, e);
-        setSpot({
+        const cached = readStoredFxSnapshot();
+        setSpot((s) => ({
           loading: false,
           error: errorMsg,
-          eurInr: null,
-          gbpInr: null,
-          date: null,
-          source: null,
-        });
+          eurInr: s.eurInr ?? cached?.eurInr ?? null,
+          gbpInr: s.gbpInr ?? cached?.gbpInr ?? null,
+          date: s.date ?? cached?.date ?? null,
+          source: s.source ?? cached?.source ?? null,
+        }));
       });
   }, []);
 
@@ -273,6 +341,35 @@ export default function ForYouPage() {
     fetchSpotRates();
     return () => spotAbortRef.current?.abort();
   }, [fetchSpotRates]);
+
+  useEffect(() => {
+    const apply = (detail) => {
+      if (detail?.eurInr == null || detail?.gbpInr == null) return;
+      setSpot((s) => ({
+        ...s,
+        eurInr: detail.eurInr,
+        gbpInr: detail.gbpInr,
+        date: detail.date ?? s.date,
+        source: detail.source ?? s.source,
+        error: null,
+      }));
+    };
+    const onCustom = (e) => apply(e.detail);
+    const onStorage = (e) => {
+      if (e.key !== FX_LOCALSTORAGE_KEY || !e.newValue) return;
+      try {
+        apply(JSON.parse(e.newValue));
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener(FX_UPDATED_EVENT, onCustom);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(FX_UPDATED_EVENT, onCustom);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   useEffect(() => {
     const hash = location.hash?.replace(/^#/, "");
@@ -501,22 +598,7 @@ export default function ForYouPage() {
               </p>
 
               <div className="mt-10 flex flex-wrap gap-3">
-                {[
-                  {
-                    k: "Matches",
-                    v: String(
-                      recommendations?.universities?.length || PROGRAMS.length,
-                    ),
-                  },
-                  { k: "Shortlist", v: "3" },
-                  {
-                    k: "Profile",
-                    v:
-                      leadProfile?.data_completeness > 80 ? "Complete"
-                      : leadProfile?.data_completeness > 40 ? "Building"
-                      : "Starting",
-                  },
-                ].map((chip) => (
+                {overviewChips.map((chip) => (
                   <div
                     key={chip.k}
                     className="rounded-lg border border-white/10 bg-white/6 px-5 py-3 backdrop-blur-md"
@@ -530,6 +612,15 @@ export default function ForYouPage() {
                   </div>
                 ))}
               </div>
+              {user && user.role !== "admin" ? (
+                <Link
+                  to="/#pricing"
+                  className="mt-5 inline-flex items-center gap-1.5 text-[0.82rem] font-medium text-fateh-gold-light/95 underline-offset-4 hover:text-fateh-gold hover:underline"
+                >
+                  View plans &amp; upgrade
+                  <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
+                </Link>
+              ) : null}
             </motion.div>
 
             <motion.div
@@ -546,6 +637,24 @@ export default function ForYouPage() {
                 Ireland &amp; UK · PG · 2026 intake
               </p>
               <div className="mt-6 space-y-3 border-t border-white/10 pt-6">
+                {hubPlan ? (
+                  <>
+                    <div className="flex justify-between gap-4 text-sm">
+                      <span className="shrink-0 text-white/45">Your plan</span>
+                      <span className="text-right font-medium text-fateh-gold-light">
+                        {hubPlan.name}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-4 text-sm">
+                      <span className="shrink-0 text-white/45">Counselling</span>
+                      <span className="text-right text-white/85">{hubPlan.sessions}</span>
+                    </div>
+                    <div className="flex justify-between gap-4 text-sm">
+                      <span className="shrink-0 text-white/45">SOP</span>
+                      <span className="text-right text-white/85">{hubPlan.sop}</span>
+                    </div>
+                  </>
+                ) : null}
                 <div className="flex justify-between text-sm">
                   <span className="text-white/45">Next milestone</span>
                   <span className="font-medium text-fateh-gold-light">

@@ -11,7 +11,8 @@ export default function AnalyticsPage() {
       <div>
         <h1 className="font-fateh-serif text-3xl font-semibold text-fateh-ink md:text-[2.15rem]">Call analytics</h1>
         <p className="mt-2 max-w-3xl text-[0.95rem] leading-relaxed text-fateh-muted">
-          Longitudinal view of voice volume, top student questions, and conversion funnel stages — demo metrics until analytics warehouse is wired.
+          What students ask about most often, how busy the lines are, and how people move from first call toward enrolment — sample
+          view until your analytics feed is connected.
         </p>
       </div>
 

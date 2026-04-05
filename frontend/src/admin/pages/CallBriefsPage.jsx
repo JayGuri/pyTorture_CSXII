@@ -219,19 +219,13 @@ export default function CallBriefsPage() {
           Counsellor intelligence briefs
         </h1>
         <p className="mt-2 max-w-3xl text-[0.95rem] leading-relaxed text-fateh-muted">
-          Data comes only from the backend: <span className="font-medium text-fateh-ink/90">call_sessions</span>{" "}
-          and <span className="font-medium text-fateh-ink/90">leads</span> via{" "}
-          <code className="text-fateh-ink/80">GET /api/leads</code> and{" "}
-          <code className="text-fateh-ink/80">GET /api/leads/:id</code>. Knowledge-base panels still read static
-          JSON in the repo (not generated demo people).
+          One place to prepare before you speak with a student: call history, notes, and reference info from your knowledge
+          files side by side.
         </p>
         {connectionError ? (
           <p className="mt-2 text-[0.82rem] text-amber-900">
             Cannot reach the API: {connectionError}. Start the backend (e.g. uvicorn on port 8000) to load briefs.
           </p>
-        ) : null}
-        {backendLive ? (
-          <p className="mt-2 text-[0.78rem] text-fateh-muted">Connected — showing Supabase-backed leads only.</p>
         ) : null}
       </div>
 
@@ -250,9 +244,7 @@ export default function CallBriefsPage() {
               </li>
             ) : null}
             {backendLive && apiSummaries.length === 0 ? (
-              <li className="px-2 py-6 text-center text-[0.82rem] text-fateh-muted">
-                No leads returned from <code className="text-fateh-ink/80">GET /api/leads</code>.
-              </li>
+              <li className="px-2 py-6 text-center text-[0.82rem] text-fateh-muted">No leads to show yet.</li>
             ) : null}
             {backendLive
               ? apiSummaries.map((row) => {
@@ -309,8 +301,7 @@ export default function CallBriefsPage() {
             <div className="rounded-xl border border-dashed border-fateh-border bg-fateh-paper/40 px-6 py-10 text-center">
               <p className="text-[0.95rem] text-fateh-ink">No leads in the database</p>
               <p className="mt-2 text-[0.85rem] text-fateh-muted">
-                The API responded successfully but returned an empty list. Seed or create leads in Supabase to
-                see briefs here.
+                When new students appear in your system, their briefs will show up here automatically.
               </p>
             </div>
           ) : null}
