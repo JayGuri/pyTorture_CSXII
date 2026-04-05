@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 MISSING_FIELD_QUESTIONS = {
     "name": "May I know your name so I can guide you better?",
+    "institution": "Which college or university are you studying at, or which one did you graduate from?",
     "location": "Which city are you calling from?",
     "education_level": "Are you finishing your bachelor's, or have you already graduated?",
     "field": "What is your academic background, like engineering, business, or science?",
@@ -16,7 +17,13 @@ MISSING_FIELD_QUESTIONS = {
 }
 
 LANGUAGE_INSTRUCTIONS = {
-    "en-IN": "Respond in clear, warm, professional Indian English.",
+    "en-IN": (
+        "STRICT ENGLISH ONLY. You MUST respond entirely in English. "
+        "Do NOT use any Hindi, Hinglish, or vernacular words at all — not even common ones like 'namaste', 'ji', 'haan', 'accha', 'kya', 'hai', 'aapka', etc. "
+        "Every single word in your reply must be pure, professional English. "
+        "Use clear, warm, professional Indian English. "
+        "If the student speaks in Hindi or Hinglish, still reply ONLY in English."
+    ),
     "hi-IN": (
         "Respond in natural Hinglish. Keep university names, course names, test names, "
         "city names, country names, and numbers in English."
@@ -30,6 +37,7 @@ LANGUAGE_INSTRUCTIONS = {
 # Fields in priority order for onboarding — the LLM will naturally ask about these
 _ONBOARDING_PRIORITY = [
     "name",
+    "institution",
     "location",
     "education_level",
     "field",
@@ -95,14 +103,27 @@ def build_system_prompt(
     # Build the list of missing fields so LLM knows what to collect
     null_fields = _build_null_fields_list(caller_doc)
     if null_fields:
+        # Show more missing fields for first-time callers to be persistent
+        num_to_show = 4 if not is_returning_caller else 3
         missing_questions = []
-        for field in null_fields[:3]:  # Show top 3 missing fields
+        for field in null_fields[:num_to_show]:
             q = MISSING_FIELD_QUESTIONS.get(field)
             if q:
                 missing_questions.append(f"  - {field}: {q}")
+        
+        # Flag highest-priority missing fields
+        high_priority_missing = [f for f in ["name", "institution"] if f in null_fields]
+        priority_note = ""
+        if high_priority_missing:
+            priority_note = (
+                f"\n⚠️ HIGH PRIORITY: You MUST ask about {' and '.join(high_priority_missing)} in THIS reply. "
+                "These are critical lead details. Weave the question naturally but do NOT skip it."
+            )
+        
         missing_section = (
             "MISSING INFORMATION (you MUST naturally weave ONE of these into your reply):\n"
             + "\n".join(missing_questions)
+            + priority_note
         )
     else:
         missing_section = "All key fields are already known. Focus on guidance, reassurance, and next steps."
@@ -120,7 +141,10 @@ def build_system_prompt(
         "- Introduce yourself briefly as Priya from Fateh Education.\n"
         "- Focus on light onboarding and trust-building.\n"
         "- Your MAIN JOB is to collect the student's basic info naturally through conversation.\n"
-        "- Ask only one natural question per reply to fill in the missing fields below."
+        "- You MUST get the student's NAME and CURRENT/LAST INSTITUTION in the first 1-2 turns. This is non-negotiable.\n"
+        "- Ask only one natural question per reply to fill in the missing fields below.\n"
+        "- If the student hasn't given their name yet, ask for it immediately in a warm way.\n"
+        "- If you have their name but not their institution, ask which college they are studying at or graduated from."
     )
 
     recent_topics = ", ".join(topics_discussed[-5:]) if topics_discussed else "none yet"
@@ -158,7 +182,11 @@ DATA COLLECTION STRATEGY:
 - Be slick and natural about collecting information. Don't interrogate.
 - Weave questions into genuine advice. For example: "To suggest the best universities, could you tell me which city you're based in?"
 - After getting an answer, acknowledge it warmly before moving to the next topic.
-- Prioritize getting the student's name and location early — it builds trust.
+- Prioritize getting the student's NAME and CURRENT/LAST INSTITUTION early — these are the MOST important fields.
+- Example for name: "Before we dive in, may I know your good name?"
+- Example for institution: "That's great! And which college are you studying at currently?"
+- If the student deflects or avoids giving their name/institution, gently circle back to it in the next reply.
+- Never skip collecting name and institution — these are essential for our records.
 
 COUNSELLING KNOWLEDGE:
 - UK tuition is often around GBP 15,000 to 35,000 per year.

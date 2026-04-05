@@ -14,14 +14,30 @@ def extract_updates(transcript: str, existing: Dict[str, Any]) -> Dict[str, Any]
     updates: Dict[str, Any] = {}
 
     if not existing.get("name"):
-        name_match = re.search(
-            r"(?:my name is|i am|i'm|mera naam|naam hai)\s+([A-Za-z][A-Za-z\s]{1,40})",
-            text,
-            re.IGNORECASE,
-        )
+        # Try multiple patterns in priority order
+        name_patterns = [
+            r"(?:my name is|i am|i'm|mera naam|naam hai|mera naam hai)\s+([A-Za-z][A-Za-z\s]{1,40})",
+            r"(?:this is|myself|call me|i'm called|mai|main|mein)\s+([A-Za-z][A-Za-z\s]{1,40})",
+            r"([A-Za-z][A-Za-z\s]{1,30})\s+(?:here|speaking|bol raha|bol rahi|bolti|bolta)",
+        ]
+        name_match = None
+        for pattern in name_patterns:
+            name_match = re.search(pattern, text, re.IGNORECASE)
+            if name_match:
+                break
         if name_match:
             candidate = " ".join(name_match.group(1).split()).strip(" .,!?")
-            if candidate and len(candidate.split()) <= 3:
+            # Filter out common false positives
+            false_positives = {
+                "good", "fine", "ok", "okay", "yes", "no", "hi", "hello",
+                "interested", "calling", "looking", "studying", "from",
+                "priya", "sure", "thanks", "thank", "great", "nice",
+            }
+            if (
+                candidate
+                and len(candidate.split()) <= 4
+                and candidate.lower().split()[0] not in false_positives
+            ):
                 updates["name"] = candidate.title()
 
     if not existing.get("email"):
@@ -182,7 +198,7 @@ FIELDS TO EXTRACT (only if the student clearly mentioned or confirmed them):
 {json.dumps(null_fields)}
 
 FIELD RULES:
-- name: Student's full name. Title case.
+- name: Student's full name. Title case. IMPORTANT: Capture the name even if stated casually — e.g. "This is Akshat", "Myself Rahul", "Akshat here", "Main Akshat", "I am Priya", "My name is Ravi". Also catch it when it's a direct answer to "What's your name?" — e.g. if counsellor asked for the name and student simply replied "Akshat" or "Akshat Sharma", that IS the name. Do NOT confuse the counsellor's name (Priya Sharma) with the student's name.
 - email: Valid email address.
 - location: Indian city name. Title case.
 - education_level: "Undergraduate" or "Postgraduate".

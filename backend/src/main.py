@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -16,12 +17,37 @@ from src.routes.sessions import router as sessions_router
 from src.routes.health import router as health_router
 from src.routes.twilio_webhook import router as twilio_router
 from src.services.tts.sarvam import router as tts_router
+from src.services.whatsapp import check_and_send_session_reminders
+
+
+SESSION_REMINDER_INTERVAL_SEC = 30 * 60  # Every 30 minutes
+
+
+async def _session_reminder_loop():
+    """Background loop that periodically sends counselling session reminders."""
+    while True:
+        try:
+            await asyncio.sleep(SESSION_REMINDER_INTERVAL_SEC)
+            count = await check_and_send_session_reminders()
+            if count > 0:
+                from src.utils.logger import logger
+                logger.info(f"Session reminder cron completed | reminders_sent={count}")
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            pass  # Errors are logged inside the function
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_db()
+    reminder_task = asyncio.create_task(_session_reminder_loop())
     yield
+    reminder_task.cancel()
+    try:
+        await reminder_task
+    except asyncio.CancelledError:
+        pass
     await disconnect_db()
 
 
