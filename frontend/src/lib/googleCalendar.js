@@ -24,3 +24,30 @@ export function googleCalendarUrl({ title, details, isoDate }) {
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
+
+/** UTC compact form for Google Calendar timed events: YYYYMMDDTHHmmssZ */
+function toGcalUtc(dt) {
+  return new Date(dt).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+}
+
+/**
+ * Timed event (default 1 hour). Pass ISO start string from the server.
+ * @param {{ title: string, details?: string, startIso: string, durationMinutes?: number }} opts
+ */
+export function googleCalendarTimedEventUrl({
+  title,
+  details = "",
+  startIso,
+  durationMinutes = 60,
+}) {
+  const start = new Date(startIso);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title,
+    details,
+    dates: `${toGcalUtc(start)}/${toGcalUtc(end)}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}

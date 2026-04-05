@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { fetchLiveAndRingingSessions } from "../../lib/forYouApi.js";
 
 function maskCaller(phone) {
@@ -49,18 +49,13 @@ export default function LiveConversationsPage() {
     };
   }, []);
 
-  const subtitle = useMemo(() => {
-    return "Rows from GET /api/dashboard/active-sessions (ringing + active). No demo feed — if the API returns an empty list, the table is empty.";
-  }, []);
-
   return (
     <div className="space-y-8">
       <div>
         <h1 className="font-fateh-serif text-3xl font-semibold text-fateh-ink md:text-[2.15rem]">
           Live conversations
         </h1>
-        <p className="mt-2 max-w-3xl text-[0.95rem] leading-relaxed text-fateh-muted">{subtitle}</p>
-        {error ? <p className="mt-2 text-[0.82rem] text-amber-900">API error: {error}</p> : null}
+        {error ? <p className="mt-2 text-[0.82rem] text-amber-900">Could not load sessions: {error}</p> : null}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-fateh-border/90 bg-white/95 shadow-[0_24px_60px_-30px_rgba(11,14,26,0.22)]">
@@ -120,11 +115,6 @@ export default function LiveConversationsPage() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="rounded-lg border border-dashed border-fateh-border bg-fateh-gold-pale/25 px-5 py-4 text-[0.82rem] text-fateh-muted">
-        <span className="font-medium text-fateh-ink">Note:</span> Rolling scores require the API to attach lead
-        data to sessions; this table only reflects what active-sessions returns.
       </div>
     </div>
   );

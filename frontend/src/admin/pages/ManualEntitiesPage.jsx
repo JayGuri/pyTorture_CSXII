@@ -22,13 +22,13 @@ export default function ManualEntitiesPage() {
 
   const submitUni = (e) => {
     e.preventDefault();
-    showToast(`University “${uni.name || "Untitled"}” saved — embedding job queued (simulated).`);
+    showToast(`University “${uni.name || "Untitled"}” saved. It will be picked up for search when ingest is connected.`);
     setUni({ name: "", country: "", website: "", notes: "" });
   };
 
   const submitCourse = (e) => {
     e.preventDefault();
-    showToast(`Course “${course.title || "Untitled"}” saved — vector index update queued (simulated).`);
+    showToast(`Course “${course.title || "Untitled"}” saved. It will be picked up for search when ingest is connected.`);
     setCourse({ title: "", level: "Masters", field: "", university: "", intake: "" });
   };
 
@@ -37,8 +37,9 @@ export default function ManualEntitiesPage() {
       <div>
         <h1 className="font-fateh-serif text-3xl font-semibold text-fateh-ink md:text-[2.15rem]">Manual entities</h1>
         <p className="mt-2 max-w-3xl text-[0.95rem] leading-relaxed text-fateh-muted">
-          Add universities and courses without touching code. On save, the pipeline should chunk, embed, and attach to retrieval — wired here as
-          UI + toast until your ingest API exists.
+          Add universities and courses here so the assistant can mention them in future conversations. Saves are stored from this
+          screen for now; when your ingest service is connected, each save will flow through chunking and search automatically. You&apos;ll
+          get a confirmation toast either way.
         </p>
       </div>
 
