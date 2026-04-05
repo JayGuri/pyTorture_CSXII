@@ -91,7 +91,7 @@ async def list_leads(
 
         # Fetch paginated results, sorted by last_contact descending
         callers = await (
-            db.callers.find(filter_query, projection={"memory.messages": 0})
+            db.callers.find(filter_query)
             .sort("last_contact", -1)
             .skip(skip)
             .limit(limit)

@@ -1,0 +1,75 @@
+/* Transcript Sidebar Admin Theme 1:1 with AskFatehSidebar */
+
+.ts-wrapper-admin {
+  z-index: 2000; /* Higher than any admin component */
+}
+
+.ts-wrapper-admin .ask-fateh-sidebar-panel {
+  z-index: 2010;
+}
+
+.ts-wrapper-admin .ask-fateh-sidebar-header {
+  z-index: 2020;
+}
+
+.ts-wrapper-admin .ask-fateh-sidebar-overlay {
+  z-index: 1990;
+}
+
+/* Metadata in the header */
+.ts-live-meta {
+  margin-top: 1rem;
+}
+
+.ts-live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+}
+
+.ts-live-status[data-online="true"] {
+  background: rgba(5, 150, 105, 0.1);
+  color: #059669;
+}
+
+.ts-live-status[data-online="false"] {
+  background: rgba(11, 14, 26, 0.05);
+  color: rgba(11, 14, 26, 0.4);
+}
+
+/* Bubble role labels */
+.ts-bubble-role {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: 0.4rem;
+  opacity: 0.5;
+}
+
+[data-role="assistant"] .ts-bubble-role {
+  color: #c8a45a;
+  opacity: 0.9;
+}
+
+[data-role="user"] .ts-bubble-role {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.ts-footer-meta {
+  opacity: 0.8;
+}
+
+/* Mobile adjustments */
+@media (max-width: 640px) {
+  .ts-wrapper-admin .ask-fateh-sidebar-header {
+    top: 1.5rem !important; /* Move higher on mobile if needed */
+  }
+}

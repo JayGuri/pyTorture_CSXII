@@ -84,6 +84,7 @@ export default function CallBriefsPage() {
   const [apiDetailLoading, setApiDetailLoading] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
   const [detailError, setDetailError] = useState(null);
+  const [selectedCallSid, setSelectedCallSid] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,15 +166,41 @@ export default function CallBriefsPage() {
   const selected = apiVm;
   const scoreDenom = API_SCORE_DENOM;
 
+  const calls = useMemo(() => {
+    if (!apiDetail?.calls) return [];
+    return Array.isArray(apiDetail.calls) ? apiDetail.calls : [];
+  }, [apiDetail]);
+
+  const selectedCall = useMemo(
+    () => calls.find((c) => c.call_sid === selectedCallSid),
+    [calls, selectedCallSid]
+  );
+
+  const filteredTranscript = useMemo(() => {
+    const transcript = apiVm?.transcript || [];
+    if (!selectedCall || !selectedCall.started_at) return transcript;
+
+    const startTime = new Date(selectedCall.started_at).getTime();
+    const endTime = selectedCall.ended_at
+      ? new Date(selectedCall.ended_at).getTime()
+      : Date.now();
+
+    return transcript.filter((line) => {
+      if (!line.timestamp) return false;
+      const lineTime = new Date(line.timestamp).getTime();
+      return lineTime >= startTime && lineTime <= endTime;
+    });
+  }, [apiVm?.transcript, selectedCall]);
+
   const transcriptPayload = useMemo(
     () =>
       apiVm
         ? {
             studentName: apiVm.studentName,
             id: apiVm.id,
-            endedAt: apiVm.endedAt,
-            durationSec: apiVm.durationSec,
-            transcript: apiVm.transcript || [],
+            endedAt: selectedCall?.ended_at || apiVm.endedAt,
+            durationSec: selectedCall?.duration_seconds || apiVm.durationSec,
+            transcript: filteredTranscript,
           }
         : {
             studentName: "",
@@ -182,7 +209,7 @@ export default function CallBriefsPage() {
             durationSec: null,
             transcript: [],
           },
-    [apiVm],
+    [apiVm, selectedCall, filteredTranscript],
   );
 
   return (
@@ -615,11 +642,98 @@ export default function CallBriefsPage() {
                 </details>
               ) : null}
 
+              {calls.length > 0 && (
+                <section className="rounded-xl border border-fateh-border/90 bg-white/95 px-6 py-5">
+                  <h3 className="font-fateh-serif text-lg font-semibold text-fateh-ink">
+                    Call history
+                  </h3>
+                  <div className="mt-4 space-y-2">
+                    {calls.map((call) => {
+                      const active = call.call_sid === selectedCallSid;
+                      const started = new Date(call.started_at);
+                      const ended = call.ended_at ? new Date(call.ended_at) : null;
+                      const duration = call.duration_seconds
+                        ? formatDuration(call.duration_seconds)
+                        : ended
+                          ? formatDuration(
+                              Math.floor(
+                                (ended.getTime() - started.getTime()) / 1000
+                              )
+                            )
+                          : "—";
+
+                      return (
+                        <button
+                          key={call.call_sid}
+                          type="button"
+                          onClick={() =>
+                            setSelectedCallSid(
+                              active ? null : call.call_sid
+                            )
+                          }
+                          className={[
+                            "w-full rounded-lg border px-4 py-3 text-left transition",
+                            active
+                              ? "border-fateh-gold/60 bg-fateh-gold-pale/50"
+                              : "border-fateh-border/70 bg-fateh-paper/40 hover:border-fateh-gold/35",
+                          ].join(" ")}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-fateh-ink">
+                                {call.call_sid}
+                              </p>
+                              <p className="mt-0.5 text-[0.78rem] text-fateh-muted">
+                                {formatWhen(call.started_at)}
+                              </p>
+                            </div>
+                            <div className="text-right text-[0.82rem]">
+                              <p className="text-fateh-muted">
+                                {call.language || "—"}
+                              </p>
+                              <p className="font-medium text-fateh-ink">
+                                {duration}
+                              </p>
+                              <p
+                                className={[
+                                  "mt-0.5 text-[0.7rem] font-semibold uppercase tracking-[0.08em]",
+                                  call.status === "active"
+                                    ? "text-emerald-600"
+                                    : "text-fateh-muted",
+                                ].join(" ")}
+                              >
+                                {call.status || "completed"}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
               <section className="rounded-xl border border-fateh-border/90 bg-white/95 px-6 py-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <h3 className="font-fateh-serif text-lg font-semibold text-fateh-ink">
-                    Full conversation transcript
-                  </h3>
+                  <div>
+                    <h3 className="font-fateh-serif text-lg font-semibold text-fateh-ink">
+                      {selectedCall
+                        ? `Call ${selectedCall.call_sid} transcript`
+                        : "Full conversation transcript"}
+                    </h3>
+                    {selectedCall && (
+                      <p className="mt-1 text-[0.78rem] text-fateh-muted">
+                        Showing messages for this call only.{" "}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCallSid(null)}
+                          className="font-medium text-fateh-gold hover:underline"
+                        >
+                          Show all
+                        </button>
+                      </p>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => downloadTranscriptTxt(transcriptPayload)}
@@ -629,14 +743,15 @@ export default function CallBriefsPage() {
                     Download .txt
                   </button>
                 </div>
-                {(selected.transcript || []).length === 0 ? (
+                {filteredTranscript.length === 0 ? (
                   <p className="mt-4 text-[0.88rem] text-fateh-muted">
-                    No transcript lines on this session yet (empty or unparsed{" "}
-                    <code className="text-fateh-ink/80">call_sessions.transcript</code>).
+                    {selectedCall
+                      ? "No messages recorded for this call."
+                      : "No transcript lines on this session yet (empty or unparsed call_sessions.transcript)."}
                   </p>
                 ) : (
                   <ul className="mt-4 space-y-3">
-                    {(selected.transcript || []).map((line, idx) => (
+                    {filteredTranscript.map((line, idx) => (
                       <li
                         key={idx}
                         className={[
