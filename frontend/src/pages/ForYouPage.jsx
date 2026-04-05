@@ -54,6 +54,7 @@ import {
   getCitiesByCountry,
   buildForYouDashboard,
 } from "../lib/knowledgeBase";
+import { apiContactEmail } from "../lib/userContact.js";
 
 const container = {
   hidden: { opacity: 0 },
@@ -91,7 +92,7 @@ export default function ForYouPage() {
     error: dashboardError,
     refresh,
     updateCompleteness,
-  } = useForYouDashboard(user?.sessionId, user?.email, !!user);
+  } = useForYouDashboard(user?.sessionId, apiContactEmail(user), !!user);
 
   const [selectedId, setSelectedId] = useState(PROGRAMS[0]?.id ?? "");
   const [compareIds, setCompareIds] = useState(() => []);

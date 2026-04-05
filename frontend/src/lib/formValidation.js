@@ -100,3 +100,29 @@ export function validateLoginPassword(password) {
   }
   return { ok: true };
 }
+
+/** Digits only — for matching stored `phone`. */
+export function normalizePhone(raw) {
+  return String(raw || "").replace(/\D/g, "");
+}
+
+/**
+ * Login identifier: mobile number (digits only after normalize).
+ * @param {string} raw
+ */
+export function validateLoginPhone(raw) {
+  const value = normalizePhone(raw);
+  if (!value) {
+    return { ok: false, error: "Enter your mobile number." };
+  }
+  if (value.length < 10) {
+    return { ok: false, error: "Enter a valid mobile number (at least 10 digits)." };
+  }
+  if (value.length > 15) {
+    return { ok: false, error: "Number is too long." };
+  }
+  return { ok: true, value };
+}
+
+/** Same rules as login — reuse for sign-up mobile. */
+export const validateSignupPhone = validateLoginPhone;

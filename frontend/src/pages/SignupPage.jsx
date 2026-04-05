@@ -3,15 +3,19 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import PasswordField from "../components/auth/PasswordField";
-import { sanitizeFullNameInput, validateEmail, validateFullName, validateNewPassword } from "../lib/formValidation";
+import {
+  sanitizeFullNameInput,
+  validateFullName,
+  validateNewPassword,
+  validateSignupPhone,
+} from "../lib/formValidation";
 
 export default function SignupPage() {
   const { signup } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
@@ -22,9 +26,9 @@ export default function SignupPage() {
       setError(nameRes.error);
       return;
     }
-    const emailRes = validateEmail(email);
-    if (!emailRes.ok) {
-      setError(emailRes.error);
+    const phoneRes = validateSignupPhone(phone);
+    if (!phoneRes.ok) {
+      setError(phoneRes.error);
       return;
     }
     const passRes = validateNewPassword(password);
@@ -32,11 +36,7 @@ export default function SignupPage() {
       setError(passRes.error);
       return;
     }
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-    const res = signup(nameRes.value, emailRes.value, password);
+    const res = signup(nameRes.value, phoneRes.value, password);
     if (!res.ok) {
       setError(res.error);
       return;
@@ -66,7 +66,7 @@ export default function SignupPage() {
             Create your account
           </h1>
           <p className="mt-4 text-[0.98rem] leading-relaxed text-fateh-muted normal-case">
-            One profile for counselling, your journey, and your personalised dashboard.
+            Name, mobile number, and password — you&apos;ll use the same number to sign in.
           </p>
         </motion.div>
 
@@ -101,20 +101,20 @@ export default function SignupPage() {
               <p className="mt-1.5 text-[0.7rem] text-fateh-muted">Letters and spaces only (plus . &apos; -)</p>
             </div>
             <div>
-              <label htmlFor="su-email" className="mb-2 block text-[0.72rem] uppercase tracking-[0.12em] text-fateh-muted">
-                Email
+              <label htmlFor="su-phone" className="mb-2 block text-[0.72rem] uppercase tracking-[0.12em] text-fateh-muted">
+                Mobile number
               </label>
               <input
-                id="su-email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value.replace(/\s/g, "").slice(0, 254))}
+                id="su-phone"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/[^\d+\s-]/g, "").slice(0, 20))}
                 required
-                maxLength={254}
+                maxLength={20}
                 className="w-full rounded-sm border border-fateh-border bg-fateh-paper/60 px-4 py-3 text-fateh-ink outline-none transition focus:border-fateh-gold focus:ring-1 focus:ring-fateh-gold/30"
-                placeholder="you@example.com"
+                placeholder="e.g. 9876543210"
               />
             </div>
             <PasswordField
@@ -125,16 +125,6 @@ export default function SignupPage() {
               onChange={(e) => setPassword(e.target.value.slice(0, 128))}
               autoComplete="new-password"
               placeholder="8+ chars, letter & number"
-              minLength={8}
-            />
-            <PasswordField
-              id="su-confirm"
-              label="Confirm password"
-              name="confirm"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value.slice(0, 128))}
-              autoComplete="new-password"
-              placeholder="Repeat password"
               minLength={8}
             />
             <p className="text-[0.7rem] leading-relaxed text-fateh-muted">
